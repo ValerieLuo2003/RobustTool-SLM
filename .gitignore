@@ -1,0 +1,68 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+/.venv/
+/venv/
+/env/
+/.conda/
+
+# IDE and operating-system files.
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Generated experiment artifacts (directory-level README files are kept).
+experiments/logs/*
+!experiments/logs/.gitkeep
+experiments/results/*
+!experiments/results/.gitkeep
+
+# Generated datasets. Small deterministic fixtures under data/eval are tracked.
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/eval/*
+!data/eval/.gitkeep
+
+# Model and trainer outputs must never be committed.
+/checkpoints/
+checkpoint-*/
+/outputs/
+/trainer_output/
+/runs/
+/logs/
+wandb/
+tensorboard/
+ray_results/
+/models/
+/model_cache/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.gguf
+adapter_model.*
+
+# Generated datasets and local environment state.
+data/**/*.jsonl
+data/**/*.json
+data/**/*.csv
+data/**/*.tsv
+data/**/*.parquet
+data/**/*.arrow
+*.sqlite
+*.sqlite3
+
+# Local secrets and caches.
+.env
+.env.*
+!.env.example
+.cache/
+*.log

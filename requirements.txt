@@ -1,0 +1,2 @@
+# The Week 1 benchmark/evaluator core uses only the Python standard library.
+# Optional development and training dependencies are declared in pyproject.toml.

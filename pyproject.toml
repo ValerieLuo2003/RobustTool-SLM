@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "robust-tool-slm"
+version = "0.1.0"
+description = "Executable failure-aware post-training benchmark for reliable tool-calling SLMs."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "RobustTool-SLM contributors" }]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9"]
+train = [
+  "ms-swift>=3.8",
+  "transformers>=4.51",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["robust_tool*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

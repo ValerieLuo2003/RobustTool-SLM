@@ -1,0 +1,11 @@
+{
+  "benchmark": "calendar-toy-v1",
+  "seed": 20260809,
+  "task_files": {
+    "train": "data/eval/toy_train.jsonl",
+    "validation": "data/eval/toy_validation.jsonl",
+    "test": "data/eval/toy_test.jsonl",
+    "clean_test": "data/eval/clean_test.jsonl"
+  },
+  "max_steps": 4
+}

@@ -1,0 +1,89 @@
+[
+  {
+    "name": "list_events",
+    "description": "List calendar events whose start time falls within an optional half-open time range.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Inclusive lower bound in ISO-8601 local time."
+        },
+        "end": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Exclusive upper bound in ISO-8601 local time."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create_event",
+    "description": "Create a non-overlapping calendar event.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title": {"type": "string", "minLength": 1},
+        "start": {"type": "string", "format": "date-time"},
+        "end": {"type": "string", "format": "date-time"},
+        "location": {"type": "string"},
+        "description": {"type": "string"},
+        "attendees": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      },
+      "required": ["title", "start", "end"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "update_event",
+    "description": "Patch an existing calendar event while preserving omitted fields.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "event_id": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "start": {"type": "string", "format": "date-time"},
+        "end": {"type": "string", "format": "date-time"},
+        "location": {"type": "string"},
+        "description": {"type": "string"},
+        "attendees": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      },
+      "required": ["event_id"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "delete_event",
+    "description": "Delete an existing calendar event by ID.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "event_id": {"type": "string", "minLength": 1}
+      },
+      "required": ["event_id"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "check_availability",
+    "description": "Check whether a half-open time interval is free of calendar conflicts.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "start": {"type": "string", "format": "date-time"},
+        "end": {"type": "string", "format": "date-time"},
+        "exclude_event_id": {"type": "string"}
+      },
+      "required": ["start", "end"],
+      "additionalProperties": false
+    }
+  }
+]
