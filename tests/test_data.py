@@ -32,6 +32,18 @@ class DatasetTests(unittest.TestCase):
         right = [task.to_dict() for task in generate_calendar_toy_tasks(seed=99)]
         self.assertEqual(left, right)
 
+    def test_dated_queries_make_reference_year_explicit(self) -> None:
+        tasks = generate_calendar_toy_tasks()
+        for task in tasks:
+            reference_values = [
+                value
+                for call in task.reference_calls
+                for value in call.arguments.values()
+                if isinstance(value, str) and value.startswith("2026-")
+            ]
+            if reference_values:
+                self.assertIn("2026", task.user_query, task.task_id)
+
     def test_written_clean_test_matches_test_split(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             paths = write_calendar_toy_dataset(Path(directory), seed=5)

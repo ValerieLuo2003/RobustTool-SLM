@@ -10,7 +10,7 @@ from typing import Any, Iterable, Mapping
 
 from robust_tool.data.schemas import Task, ToolCall, write_tasks
 
-GENERATOR_VERSION = "calendar-toy-v1"
+GENERATOR_VERSION = "calendar-toy-v2"
 ALL_CALENDAR_TOOLS = (
     "list_events",
     "create_event",
@@ -94,11 +94,11 @@ def generate_calendar_toy_tasks(seed: int = 20260809) -> list[Task]:
     specs: list[Task] = []
 
     list_cases = [
-        ("train", "today's events", {"start": "2026-08-10T00:00:00", "end": "2026-08-11T00:00:00"}, 2),
-        ("train", "tomorrow morning's events", {"start": "2026-08-11T00:00:00", "end": "2026-08-11T12:00:00"}, 0),
+        ("train", "events on 2026-08-10", {"start": "2026-08-10T00:00:00", "end": "2026-08-11T00:00:00"}, 2),
+        ("train", "events on the morning of 2026-08-11", {"start": "2026-08-11T00:00:00", "end": "2026-08-11T12:00:00"}, 0),
         ("train", "all calendar events", {}, 3),
-        ("validation", "events before noon on August 10", {"start": "2026-08-10T00:00:00", "end": "2026-08-10T12:00:00"}, 1),
-        ("test", "events on the afternoon of August 11", {"start": "2026-08-11T12:00:00", "end": "2026-08-12T00:00:00"}, 1),
+        ("validation", "events before noon on 2026-08-10", {"start": "2026-08-10T00:00:00", "end": "2026-08-10T12:00:00"}, 1),
+        ("test", "events on the afternoon of 2026-08-11", {"start": "2026-08-11T12:00:00", "end": "2026-08-12T00:00:00"}, 1),
     ]
     for index, (split, phrase, arguments, count) in enumerate(list_cases, start=1):
         specs.append(
@@ -185,14 +185,14 @@ def generate_calendar_toy_tasks(seed: int = 20260809) -> list[Task]:
         (
             "calendar_availability_001",
             "train",
-            "Am I free on August 10 from 10:00 to 11:00?",
+            "Am I free on 2026-08-10 from 10:00 to 11:00?",
             {"start": "2026-08-10T10:00:00", "end": "2026-08-10T11:00:00"},
             True,
         ),
         (
             "calendar_availability_002",
             "train",
-            "Am I free on August 10 from 09:30 to 10:30?",
+            "Am I free on 2026-08-10 from 09:30 to 10:30?",
             {"start": "2026-08-10T09:30:00", "end": "2026-08-10T10:30:00"},
             False,
         ),
@@ -206,7 +206,7 @@ def generate_calendar_toy_tasks(seed: int = 20260809) -> list[Task]:
         (
             "calendar_availability_003",
             "validation",
-            "Check whether August 11 from 14:00 to 15:00 is open.",
+            "Check whether 2026-08-11 from 14:00 to 15:00 is open.",
             {"start": "2026-08-11T14:00:00", "end": "2026-08-11T15:00:00"},
             True,
         ),
@@ -254,7 +254,7 @@ def generate_calendar_toy_tasks(seed: int = 20260809) -> list[Task]:
             )
 
     if len(specs) != 25 or len({task.task_id for task in specs}) != 25:
-        raise AssertionError("calendar-toy-v1 must contain exactly 25 unique tasks")
+        raise AssertionError("calendar-toy-v2 must contain exactly 25 unique tasks")
     return specs
 
 

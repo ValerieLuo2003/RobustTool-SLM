@@ -23,7 +23,7 @@ def normalize_datetime(value: str) -> str:
     except ValueError as exc:
         raise ValueError(f"invalid ISO-8601 datetime: {value!r}") from exc
     if parsed.tzinfo is not None:
-        raise ValueError("timezone-aware datetimes are not supported in calendar-toy-v1")
+        raise ValueError("timezone-aware datetimes are not supported in the local calendar environment")
     return parsed.replace(microsecond=0).isoformat(timespec="seconds")
 
 

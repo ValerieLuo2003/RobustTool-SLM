@@ -12,7 +12,7 @@
 
 ## 2. 当前规模与划分
 
-`calendar-toy-v1` 共包含 25 条任务：
+`calendar-toy-v2` 共包含 25 条任务：
 
 | 划分 | 数量 | 允许用途 |
 |---|---:|---|
@@ -22,6 +22,8 @@
 | Clean Test | 5 | 当前与 Test 完全相同，作为后续鲁棒性对照 |
 
 Train、Validation 和 Test 的 `task_id` 不允许重叠。未来构造 Hard Cases 时只能读取 Train 或模型在开发集上的失败，不能读取 Test 内容。
+
+v2 在首次 Qwen Validation smoke test 后修复了任务文本歧义：凡是参考参数包含绝对日期，用户请求也必须显式给出年份；工具 Schema 同时明确时间值必须使用不带时区后缀的本地 ISO-8601 格式。该修改发生在正式 Clean Test 基线冻结前。
 
 ## 3. 当前任务类型
 
@@ -100,7 +102,7 @@ Train、Validation 和 Test 的 `task_id` 不允许重叠。未来构造 Hard Ca
   ],
   "metadata": {
     "split": "train",
-    "generator_version": "calendar-toy-v1",
+    "generator_version": "calendar-toy-v2",
     "seed": 20260809
   }
 }

@@ -1,5 +1,5 @@
 {
-  "benchmark": "calendar-toy-v1",
+  "benchmark": "calendar-toy-v2",
   "seed": 20260809,
   "task_files": {
     "train": "data/eval/toy_train.jsonl",

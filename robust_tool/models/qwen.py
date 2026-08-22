@@ -100,13 +100,14 @@ class QwenTransformersPolicy:
             revision=None if self.config.source in {"modelscope", "local"} else self.config.revision,
             trust_remote_code=False,
         )
-        model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            revision=None if self.config.source in {"modelscope", "local"} else self.config.revision,
-            torch_dtype=dtype,
-            low_cpu_mem_usage=True,
-            trust_remote_code=False,
-        )
+        model_kwargs: dict[str, Any] = {
+            "revision": None if self.config.source in {"modelscope", "local"} else self.config.revision,
+            "low_cpu_mem_usage": True,
+            "trust_remote_code": False,
+        }
+        transformers_major = int(importlib_metadata.version("transformers").split(".", 1)[0])
+        model_kwargs["dtype" if transformers_major >= 5 else "torch_dtype"] = dtype
+        model = AutoModelForCausalLM.from_pretrained(model_path, **model_kwargs)
         model.to(self.config.device)
         model.eval()
         self._torch = torch

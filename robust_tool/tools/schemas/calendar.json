@@ -8,12 +8,12 @@
         "start": {
           "type": "string",
           "format": "date-time",
-          "description": "Inclusive lower bound in ISO-8601 local time."
+          "description": "Inclusive lower bound as a timezone-naive ISO-8601 local datetime, for example 2026-08-10T09:00:00."
         },
         "end": {
           "type": "string",
           "format": "date-time",
-          "description": "Exclusive upper bound in ISO-8601 local time."
+          "description": "Exclusive upper bound as a timezone-naive ISO-8601 local datetime, for example 2026-08-10T10:00:00."
         }
       },
       "additionalProperties": false
@@ -26,8 +26,8 @@
       "type": "object",
       "properties": {
         "title": {"type": "string", "minLength": 1},
-        "start": {"type": "string", "format": "date-time"},
-        "end": {"type": "string", "format": "date-time"},
+        "start": {"type": "string", "format": "date-time", "description": "Timezone-naive ISO-8601 local datetime, for example 2026-08-10T09:00:00."},
+        "end": {"type": "string", "format": "date-time", "description": "Timezone-naive ISO-8601 local datetime, for example 2026-08-10T10:00:00."},
         "location": {"type": "string"},
         "description": {"type": "string"},
         "attendees": {
@@ -47,8 +47,8 @@
       "properties": {
         "event_id": {"type": "string", "minLength": 1},
         "title": {"type": "string", "minLength": 1},
-        "start": {"type": "string", "format": "date-time"},
-        "end": {"type": "string", "format": "date-time"},
+        "start": {"type": "string", "format": "date-time", "description": "Timezone-naive ISO-8601 local datetime, for example 2026-08-10T09:00:00."},
+        "end": {"type": "string", "format": "date-time", "description": "Timezone-naive ISO-8601 local datetime, for example 2026-08-10T10:00:00."},
         "location": {"type": "string"},
         "description": {"type": "string"},
         "attendees": {
@@ -78,8 +78,8 @@
     "parameters": {
       "type": "object",
       "properties": {
-        "start": {"type": "string", "format": "date-time"},
-        "end": {"type": "string", "format": "date-time"},
+        "start": {"type": "string", "format": "date-time", "description": "Timezone-naive ISO-8601 local datetime, for example 2026-08-10T09:00:00."},
+        "end": {"type": "string", "format": "date-time", "description": "Timezone-naive ISO-8601 local datetime, for example 2026-08-10T10:00:00."},
         "exclude_event_id": {"type": "string"}
       },
       "required": ["start", "end"],

@@ -168,7 +168,7 @@ success = env.check_goal()
   ],
   "metadata": {
     "split": "train",
-    "generator_version": "calendar-toy-v1",
+    "generator_version": "calendar-toy-v2",
     "seed": 20260809
   }
 }
