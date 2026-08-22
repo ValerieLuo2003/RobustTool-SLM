@@ -20,7 +20,7 @@ Shell 命令不能代替配置文件。每次运行必须把解析后的最终�
 - 使用 BF16 LoRA，rank 8、alpha 16、dropout 0.05；
 - 数据只有 15 条 Train Oracle 轨迹和 5 条 Validation Oracle 轨迹；
 - 最多运行 20 step，每 10 step 评测和保存；
-- 输出写入 `experiments/results/qwen2_5_1_5b_sft_smoke_v1/`；
+- 输出写入 `experiments/results/qwen2_5_1_5b_sft_smoke_v2/`；
 - 不读取 Clean Test，不代表正式 SFT 实验。
 
 先构建数据，再启动 smoke：

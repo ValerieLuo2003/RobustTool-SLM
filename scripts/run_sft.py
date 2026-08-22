@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import platform
 import subprocess
 import sys
@@ -62,6 +63,15 @@ def _collect_metrics(output_dir: Path, return_code: int) -> dict[str, Any]:
     return metrics
 
 
+def _swift_command(config_path: Path) -> list[str]:
+    sibling_name = "swift.exe" if sys.platform == "win32" else "swift"
+    sibling = Path(sys.executable).with_name(sibling_name)
+    executable = str(sibling) if sibling.exists() else shutil.which("swift")
+    if executable is None:
+        raise RuntimeError("cannot find the ms-swift CLI; install the project training extra")
+    return [executable, "sft", str(config_path)]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -102,7 +112,7 @@ def main() -> None:
         encoding="utf-8",
     )
 
-    command = [sys.executable, "-m", "swift.cli.sft", str(config_path)]
+    command = _swift_command(config_path)
     with run_log.open("w", encoding="utf-8") as stream:
         stream.write(f"command={json.dumps(command, ensure_ascii=False)}\n")
         stream.flush()

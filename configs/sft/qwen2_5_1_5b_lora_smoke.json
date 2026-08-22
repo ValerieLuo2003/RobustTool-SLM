@@ -41,6 +41,6 @@
   "dataloader_num_workers": 0,
   "seed": 20260822,
   "data_seed": 20260822,
-  "output_dir": "experiments/results/qwen2_5_1_5b_sft_smoke_v1/trainer_output",
-  "logging_dir": "experiments/results/qwen2_5_1_5b_sft_smoke_v1/tensorboard"
+  "output_dir": "experiments/results/qwen2_5_1_5b_sft_smoke_v2/trainer_output",
+  "logging_dir": "experiments/results/qwen2_5_1_5b_sft_smoke_v2/tensorboard"
 }
