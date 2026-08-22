@@ -72,6 +72,13 @@ def _swift_command(config_path: Path) -> list[str]:
     return [executable, "sft", str(config_path)]
 
 
+def _write_console_safely(line: str) -> None:
+    encoding = sys.stdout.encoding or "utf-8"
+    safe_line = line.encode(encoding, errors="replace").decode(encoding, errors="replace")
+    sys.stdout.write(safe_line)
+    sys.stdout.flush()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -126,11 +133,16 @@ def main() -> None:
             errors="replace",
         )
         assert process.stdout is not None
-        for line in process.stdout:
-            print(line, end="")
-            stream.write(line)
-            stream.flush()
-        return_code = process.wait()
+        try:
+            for line in process.stdout:
+                _write_console_safely(line)
+                stream.write(line)
+                stream.flush()
+            return_code = process.wait()
+        except BaseException:
+            process.terminate()
+            process.wait(timeout=30)
+            raise
 
     metrics = _collect_metrics(output_dir, return_code)
     (run_dir / "metrics.json").write_text(
