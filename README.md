@@ -45,7 +45,7 @@ Failure-aware SFT
 
 ## 当前完成到哪里
 
-目前已经完成 Week 1 基础框架，并进入 Week 2 的 Qwen Base Inference 阶段；尚未开始 SFT 或 GRPO。
+目前已经完成 Week 1 基础框架、Qwen toy Base Inference 和 ms-swift LoRA 训练链路 smoke；正式规模 SFT、Failure-SFT 与 GRPO 尚未开始。
 
 | 模块 | 当前状态 | 说明 |
 |---|---|---|
@@ -56,8 +56,8 @@ Failure-aware SFT
 | Oracle / Random Baseline | 已完成 | 不依赖模型，用来验证环境与评测器 |
 | 第一版 Evaluator | 已完成 | 支持分层指标、环境重放和失败分类 |
 | 单元测试 | 已完成 | 环境、工具、数据、轨迹、指标和评测均有覆盖 |
-| Qwen Base Inference | 进行中 | 已固定 Qwen2.5-1.5B-Instruct，并完成配置、解析器和推理入口 |
-| SFT | 进行中 | 已完成 ms-swift Agent 数据转换和 20-step LoRA smoke 配置 |
+| Qwen Base Inference | 已完成 toy smoke | 已固定 Qwen2.5-1.5B-Instruct，并在 RTX 3090 完成环境推理与自动评测 |
+| SFT | 已完成训练链路 smoke | ms-swift Agent 格式、LoRA forward/backward、Validation loss 与 checkpoint 均已验证 |
 | Failure-SFT | 未开始 | 需要先完成正式 SFT 与失败统计 |
 | 鲁棒性 Benchmark | 未开始 | Week 3 |
 | GRPO | 未开始 | Week 4 |
@@ -161,7 +161,7 @@ python scripts/run_sft.py \
   --config configs/sft/qwen2_5_1_5b_lora_smoke.json
 ```
 
-这一步只使用 15 条 Train 与 5 条 Validation Oracle 轨迹运行 20 step LoRA，用来检查 ms-swift 格式、forward、backward、loss、显存和 checkpoint。它不是正式训练，也不会读取 Clean Test。数据和训练输出都被 `.gitignore` 排除，只提交生成器和配置。
+这一步只使用 15 条 Train 与 5 条 Validation Oracle 轨迹运行 20 step LoRA，用来检查 ms-swift 格式、forward、backward、loss、显存和 checkpoint。RTX 3090 smoke 已通过，但它不是正式训练，也不会读取 Clean Test。数据和训练输出都被 `.gitignore` 排除，只提交生成器和配置。
 
 ## Calendar 工具环境
 
@@ -312,7 +312,7 @@ robust-tool-slm/
 
 ### Week 2：Qwen Baseline 与 SFT
 
-主模型固定为 Qwen2.5-1.5B-Instruct。当前正在完成真实 GPU 基线；之后构建 ms-swift 格式数据并进行 LoRA SFT，对比 Base 与 SFT。
+主模型固定为 Qwen2.5-1.5B-Instruct。真实 GPU toy 基线和 20-step LoRA smoke 已完成；下一步扩展正式 Train/Validation 数据并进行可比较的 LoRA SFT，随后复用同一 Evaluator 对比 Base 与 SFT。
 
 ### Week 3：失败驱动优化
 
