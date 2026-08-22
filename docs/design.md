@@ -305,11 +305,32 @@ experiments/results/<run_name>/
 
 Evaluator 可以只使用 Task 文件和 `trajectories.jsonl` 重新计算全部指标与失败统计。任何无法追溯到这些产物的 README 数字都不应被视为正式结果。
 
-## 14. 当前有意延后的内容
+## 14. Qwen 基线推理协议
 
-Week 1 不实现以下内容：
+第一阶段固定使用 `Qwen/Qwen2.5-1.5B-Instruct`，不同时比较多个模型。模型适配层位于 `robust_tool.models`，只向通用 Rollout Runner 暴露 `Policy.act(task, trajectory)`，Environment 和 Evaluator 不依赖 Transformers 或 ms-swift。
 
-- Qwen 模型推理；
+一次模型动作按下面的顺序产生：
+
+1. 从 `available_tools` 读取本任务允许使用的工具；
+2. 由 Tool Registry 生成标准 function schemas；
+3. 把已有 Trajectory 转换为 Qwen Chat Template 消息；
+4. 使用固定模型 revision、seed 和解码配置生成一个回合；
+5. 将模型特有的 `<tool_call>` 输出解析成统一 `ToolCall`；
+6. Environment 执行该调用，并把完整结果加入下一轮上下文；
+7. 模型直接回答或询问澄清后结束本次 Rollout。
+
+推理提示词要求每个回合最多生成一个工具调用。多工具任务通过“调用一个工具 → 接收结果 → 再决定下一步”完成，这样每一步都能独立执行、记录和分析。
+
+解析器不会把格式错误的工具调用悄悄降级为普通文本。只要模型开始输出工具调用标记，即使 JSON 或闭合标签损坏，也会保留原始输出并生成 `json_valid=false` 的调用，使 Evaluator 可以统计 `invalid_json`。
+
+模型只会看到 System Prompt、用户消息、允许使用的工具 Schema 和已经发生的工具结果。`goal_state`、`reference_calls`、测试标签和 Evaluator 诊断绝不会进入模型上下文。
+
+每一步推理记录输入与输出 token 数、延迟、原始生成文本和 CUDA 峰值显存。实验目录还保存本次实际使用的 Task 快照，因此少量 smoke test 与完整 Validation/Test 运行都能使用相同 Evaluator 重算。
+
+## 15. 当前有意延后的内容
+
+当前阶段仍有意延后以下内容：
+
 - ms-swift 训练格式的完整适配；
 - 多工具和多轮长任务；
 - 工具超时、不可用、恶意或部分返回等故障注入；

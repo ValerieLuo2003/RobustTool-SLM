@@ -110,6 +110,23 @@ python scripts/run_eval.py --run-name toy_random_seed7
 
 Oracle 只用于验证环境、任务目标和 Evaluator 自洽，不代表模型能力上限；Random 用于确认失败路径和 Failure Classifier 能工作，也不是正式模型基线。
 
+当前 Qwen 基线先在 Validation 上做 5 条任务的 GPU smoke test：
+
+```bash
+python scripts/run_qwen_baseline.py \
+  --config configs/models/qwen2_5_1_5b_instruct.json \
+  --tasks data/eval/toy_validation.jsonl \
+  --limit 5 \
+  --run-name qwen2_5_1_5b_base_val_smoke
+
+python scripts/run_eval.py \
+  --run-name qwen2_5_1_5b_base_val_smoke
+```
+
+`run_qwen_baseline.py` 会把本次实际使用的任务写入实验目录下的 `tasks.jsonl`。因此 `run_eval.py` 未显式传入 `--tasks` 时，会优先使用该快照，避免 `--limit` 运行和完整数据文件发生 task ID 不匹配。
+
+Smoke test 只验证模型下载、Chat Template、工具解析、环境执行、显存和实验产物链路。通过后才运行完整 Validation；协议冻结后再运行 Clean Test，不能根据 Test 结果修改提示词或解析规则。
+
 ## 5. 正式对比规则
 
 Base、SFT、Failure-SFT 和 GRPO 之间必须尽量保持：

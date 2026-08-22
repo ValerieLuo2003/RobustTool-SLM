@@ -45,7 +45,7 @@ Failure-aware SFT
 
 ## 当前完成到哪里
 
-目前完成的是 Week 1 基础框架，尚未开始 Qwen 推理、SFT 或 GRPO。
+目前已经完成 Week 1 基础框架，并进入 Week 2 的 Qwen Base Inference 阶段；尚未开始 SFT 或 GRPO。
 
 | 模块 | 当前状态 | 说明 |
 |---|---|---|
@@ -56,7 +56,7 @@ Failure-aware SFT
 | Oracle / Random Baseline | 已完成 | 不依赖模型，用来验证环境与评测器 |
 | 第一版 Evaluator | 已完成 | 支持分层指标、环境重放和失败分类 |
 | 单元测试 | 已完成 | 环境、工具、数据、轨迹、指标和评测均有覆盖 |
-| Qwen Base Inference | 未开始 | 下一阶段接入单个 Qwen 小模型 |
+| Qwen Base Inference | 进行中 | 已固定 Qwen2.5-1.5B-Instruct，并完成配置、解析器和推理入口 |
 | SFT / Failure-SFT | 未开始 | Week 2～3 |
 | 鲁棒性 Benchmark | 未开始 | Week 3 |
 | GRPO | 未开始 | Week 4 |
@@ -132,6 +132,25 @@ python scripts/analyze_failures.py \
 ```
 
 如果是在 PowerShell 中，也可以把多行命令写成单行执行。
+
+### 3. 运行 Qwen GPU 基线
+
+第一阶段只使用 `Qwen/Qwen2.5-1.5B-Instruct`，模型 revision 已固定在配置文件中。先安装可选训练依赖，再在 Validation 上运行少量任务：
+
+```bash
+python -m pip install -e ".[train]"
+
+python scripts/run_qwen_baseline.py \
+  --config configs/models/qwen2_5_1_5b_instruct.json \
+  --tasks data/eval/toy_validation.jsonl \
+  --limit 5 \
+  --run-name qwen2_5_1_5b_base_val_smoke
+
+python scripts/run_eval.py \
+  --run-name qwen2_5_1_5b_base_val_smoke
+```
+
+模型权重由 ModelScope 下载到本机缓存，不会写入 Git 仓库。推理过程使用工具的标准 JSON Schema 和模型 Chat Template；模型看不到 `goal_state` 或 `reference_calls`。每一步的原始输出、token 数、延迟和峰值显存都会随 Trajectory 保存。
 
 ## Calendar 工具环境
 
@@ -278,11 +297,11 @@ robust-tool-slm/
 
 ### Week 1：环境、Benchmark 与评测
 
-实现本地工具环境、数据结构、基础任务、无模型 baseline、Evaluator 和 Failure Taxonomy。当前仓库位于这一阶段末尾。
+实现本地工具环境、数据结构、基础任务、无模型 baseline、Evaluator 和 Failure Taxonomy。已经完成。
 
 ### Week 2：Qwen Baseline 与 SFT
 
-只选择一个 1.5B～4B 级别的 Qwen 主模型，接入推理，构建 ms-swift 格式数据并进行 LoRA SFT，对比 Base 与 SFT。
+主模型固定为 Qwen2.5-1.5B-Instruct。当前正在完成真实 GPU 基线；之后构建 ms-swift 格式数据并进行 LoRA SFT，对比 Base 与 SFT。
 
 ### Week 3：失败驱动优化
 

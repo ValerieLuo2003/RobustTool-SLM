@@ -27,7 +27,7 @@ def _write_json(path: Path, payload: object) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-name", default="toy_oracle")
-    parser.add_argument("--tasks", type=Path, default=PROJECT_ROOT / "data" / "eval" / "toy_test.jsonl")
+    parser.add_argument("--tasks", type=Path)
     parser.add_argument("--output-root", type=Path, default=PROJECT_ROOT / "experiments" / "results")
     args = parser.parse_args()
     if not SAFE_RUN_NAME.fullmatch(args.run_name):
@@ -37,7 +37,12 @@ def main() -> None:
     trajectory_path = run_dir / "trajectories.jsonl"
     if not trajectory_path.exists():
         parser.error(f"trajectory file does not exist: {trajectory_path}; run run_baseline.py first")
-    tasks = load_tasks(args.tasks)
+    task_path = args.tasks or (
+        run_dir / "tasks.jsonl"
+        if (run_dir / "tasks.jsonl").exists()
+        else PROJECT_ROOT / "data" / "eval" / "toy_test.jsonl"
+    )
+    tasks = load_tasks(task_path)
     trajectories = load_trajectories(trajectory_path)
     report = evaluate_dataset(tasks, trajectories)
 

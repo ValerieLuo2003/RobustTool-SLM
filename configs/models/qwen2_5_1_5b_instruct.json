@@ -1,0 +1,15 @@
+{
+  "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+  "revision": "3c3787b7c81927cc64ad45dc32ff1c9ce2a5de34",
+  "source": "modelscope",
+  "local_model_path": null,
+  "dtype": "bfloat16",
+  "device": "cuda:0",
+  "max_input_tokens": 4096,
+  "max_new_tokens": 256,
+  "do_sample": false,
+  "temperature": null,
+  "top_p": null,
+  "seed": 20260822,
+  "system_prompt": "You are a reliable calendar tool assistant. Use only the tools provided to you. Call at most one tool per assistant turn. Never invent a tool or argument. If required information is missing, ask one concise clarifying question without calling a tool. After receiving a tool result, use it to decide the next action. Do not claim success when a tool reports an error."
+}

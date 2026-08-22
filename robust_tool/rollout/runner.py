@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import random
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Mapping, Protocol
 
 from robust_tool.data.schemas import Task, ToolCall
 from robust_tool.env.calendar import CalendarEnvironment
@@ -17,6 +17,7 @@ class AgentAction:
     kind: str
     tool_call: ToolCall | None = None
     content: str | None = None
+    metadata: Mapping[str, Any] | None = None
 
 
 class Policy(Protocol):
@@ -78,8 +79,11 @@ def run_policy(tasks: list[Task], policy: Policy, *, max_steps: int = 4) -> list
             messages=[TrajectoryMessage(role="user", content=task.user_query)],
             metadata={"policy": policy.name},
         )
+        step_metadata: list[Mapping[str, Any]] = []
         for _step in range(max_steps):
             action = policy.act(task, trajectory)
+            if action.metadata:
+                step_metadata.append({"step": _step, **dict(action.metadata)})
             if action.kind == "call" and action.tool_call is not None:
                 trajectory.messages.append(
                     TrajectoryMessage(role="assistant", action="call", tool_call=action.tool_call)
@@ -95,6 +99,8 @@ def run_policy(tasks: list[Task], policy: Policy, *, max_steps: int = 4) -> list
             break
         else:
             trajectory.metadata = {**trajectory.metadata, "truncated": True}
+        if step_metadata:
+            trajectory.metadata = {**trajectory.metadata, "generation_steps": step_metadata}
         trajectory.final_state = env.get_state()
         trajectories.append(trajectory)
     return trajectories
