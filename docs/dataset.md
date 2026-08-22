@@ -2,13 +2,13 @@
 
 ## 1. 数据集的作用
 
-当前数据不是为了直接训练出强模型，而是用于验证三件事：
+数据协议先保证环境与评测自洽，再为正式 SFT 提供可执行监督：
 
 1. Calendar 工具环境是否可以确定性执行；
 2. Task 与 Trajectory 是否能够完整表达工具 Agent 任务；
 3. Evaluator 是否能正确区分成功、格式错误、参数错误、工具错误和任务失败。
 
-在这三件事稳定前，不扩大到 5k～15k 训练轨迹。
+上述三件事已通过 toy benchmark 和 LoRA smoke 验证，当前已经进入 6000 条正式 Train 轨迹阶段。
 
 ## 2. 当前规模与划分
 
@@ -25,6 +25,16 @@ Train、Validation 和 Test 的 `task_id` 不允许重叠。未来构造 Hard Ca
 
 v2 在首次 Qwen Validation smoke test 后修复了任务文本歧义：凡是参考参数包含绝对日期，用户请求也必须显式给出年份；工具 Schema 同时明确时间值必须使用不带时区后缀的本地 ISO-8601 格式。该修改发生在正式 Clean Test 基线冻结前。
 
+正式 `calendar-formal-sft-v1` 的冻结规模为：
+
+| 划分 | 数量 | 允许用途 |
+|---|---:|---|
+| Train | 6000 | 正式 SFT |
+| Validation | 500 | checkpoint 和训练配置评测、失败挖掘 |
+| Test / Clean Test | 1000 | 冻结后的最终 Base/SFT 比较，不参与训练或失败挖掘 |
+
+配置位于 `configs/data/calendar_formal_sft_v1.json`。生成器会检查 7500 个 task ID、7500 条规范化用户请求均唯一，并让 Oracle 在全新环境中重放全部任务；任何重复或目标失败都会终止构建。
+
 ## 3. 当前任务类型
 
 25 条任务覆盖：
@@ -37,7 +47,7 @@ v2 在首次 Qwen Validation smoke test 后修复了任务文本歧义：凡是�
 - `clarify`：用户缺少时间、日期、时长等必要信息时要求澄清；
 - `respond`：用户只询问能力时直接回答，不调用工具。
 
-当前任务大多为单工具 smoke test。真正的多工具、多轮、工具错误恢复和扰动任务将在后续阶段加入。
+正式数据包含八类配额：查询、创建、更新、删除、空闲检查、澄清、无工具和多步任务。多步任务包括 `check_availability → create_event`、`list_events → update_event` 和 `list_events → delete_event`，后一步需要使用前一步工具结果中的状态或 event ID。工具错误恢复与扰动任务仍留到 Failure-aware 阶段。
 
 ## 4. ms-swift SFT 数据
 
@@ -60,7 +70,7 @@ v2 在首次 Qwen Validation smoke test 后修复了任务文本歧义：凡是�
 
 其中 `tools`、`tool_call.content` 和 `tool_response.content` 都是 JSON 字符串。`goal_state`、`reference_calls` 和 Failure 标签不会进入训练记录。生成前会同时加载 Test task_id 做集合交叉检查，但 Test 内容不会被转换或写入训练文件。
 
-当前 `calendar-sft-smoke-v1` 只有 15 条 Train 和 5 条 Validation，用途是验证格式、loss、反向传播、LoRA checkpoint 和显存，不用于报告训练收益。正式 SFT 数据仍需扩展到 5k～15k，并增加表达改写、参数组合、多步和澄清轨迹。
+`calendar-sft-smoke-v1` 的 15/5 轨迹只用于训练链路验证。正式转换入口是 `scripts/build_formal_sft_data.py`，输出 6000/500 条 Agent 轨迹，覆盖划分独立的表达改写、参数组合、多步、澄清和无工具决策。Test 文件只做集合与哈希检查，不会被转换。
 
 ## 5. Task Schema
 

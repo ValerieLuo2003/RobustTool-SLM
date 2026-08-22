@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import hashlib
 import json
 import platform
@@ -69,6 +70,11 @@ def main() -> None:
         default=PROJECT_ROOT / "data" / "eval" / "toy_validation.jsonl",
     )
     parser.add_argument("--run-name", default="qwen2_5_1_5b_base_smoke")
+    parser.add_argument(
+        "--adapter-path",
+        type=Path,
+        help="Optional ms-swift/PEFT LoRA checkpoint loaded on top of the configured base model.",
+    )
     parser.add_argument("--output-root", type=Path, default=PROJECT_ROOT / "experiments" / "results")
     parser.add_argument("--max-steps", type=int, default=4)
     parser.add_argument("--limit", type=int)
@@ -85,6 +91,8 @@ def main() -> None:
         parser.error(f"model config does not exist: {args.config}")
     if not args.tasks.exists():
         parser.error(f"task file does not exist: {args.tasks}; run scripts/generate_data.py first")
+    if args.adapter_path is not None and not args.adapter_path.is_dir():
+        parser.error(f"adapter directory does not exist: {args.adapter_path}")
 
     run_dir = args.output_root.resolve() / args.run_name
     artifacts = (
@@ -99,6 +107,8 @@ def main() -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
 
     model_config = load_model_config(args.config)
+    if args.adapter_path is not None:
+        model_config = replace(model_config, adapter_path=str(args.adapter_path.resolve()))
     tasks = load_tasks(args.tasks)
     if args.limit is not None:
         tasks = tasks[: args.limit]
@@ -128,7 +138,7 @@ def main() -> None:
     )
     config_record = {
         "run_name": args.run_name,
-        "run_type": "qwen_base_inference",
+        "run_type": "qwen_lora_adapter_inference" if model_config.adapter_path else "qwen_base_inference",
         "model": model_config.to_dict(),
         "runtime": dict(policy.runtime_metadata()),
         "seed": model_config.seed,
@@ -148,6 +158,7 @@ def main() -> None:
     (run_dir / "run.log").write_text(
         f"model={model_config.model_id}\n"
         f"revision={model_config.revision}\n"
+        f"adapter_path={model_config.adapter_path}\n"
         f"task_count={len(tasks)}\n"
         f"duration_seconds={duration:.6f}\n",
         encoding="utf-8",

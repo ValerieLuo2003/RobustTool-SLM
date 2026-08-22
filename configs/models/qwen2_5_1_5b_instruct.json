@@ -3,6 +3,7 @@
   "revision": "3c3787b7c81927cc64ad45dc32ff1c9ce2a5de34",
   "source": "modelscope",
   "local_model_path": null,
+  "adapter_path": null,
   "dtype": "bfloat16",
   "device": "cuda:0",
   "max_input_tokens": 4096,

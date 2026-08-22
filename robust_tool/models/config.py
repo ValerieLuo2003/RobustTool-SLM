@@ -16,6 +16,7 @@ class ModelInferenceConfig:
     revision: str
     source: ModelSource = "modelscope"
     local_model_path: str | None = None
+    adapter_path: str | None = None
     dtype: str = "bfloat16"
     device: str = "cuda:0"
     max_input_tokens: int = 4096
@@ -41,6 +42,8 @@ class ModelInferenceConfig:
             raise ValueError(f"unsupported model source: {self.source}")
         if self.source == "local" and not self.local_model_path:
             raise ValueError("local source requires local_model_path")
+        if self.adapter_path is not None and not self.adapter_path.strip():
+            raise ValueError("adapter_path must be null or a non-empty path")
         if self.dtype not in {"auto", "float16", "bfloat16", "float32"}:
             raise ValueError(f"unsupported dtype: {self.dtype}")
         if self.max_input_tokens <= 0 or self.max_new_tokens <= 0:

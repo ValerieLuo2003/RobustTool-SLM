@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import random
 import time
 from importlib import metadata as importlib_metadata
@@ -74,6 +75,8 @@ class QwenTransformersPolicy:
         self._tokenizer: Any = None
         self._model: Any = None
         self._resolved_model_path: str | None = None
+        self._resolved_adapter_path: str | None = None
+        self._adapter_metadata: dict[str, Any] = {}
 
     def load(self) -> None:
         """Load optional heavyweight dependencies and model weights once."""
@@ -108,11 +111,51 @@ class QwenTransformersPolicy:
         transformers_major = int(importlib_metadata.version("transformers").split(".", 1)[0])
         model_kwargs["dtype" if transformers_major >= 5 else "torch_dtype"] = dtype
         model = AutoModelForCausalLM.from_pretrained(model_path, **model_kwargs)
+        if self.config.adapter_path is not None:
+            model = self._load_adapter(model)
         model.to(self.config.device)
         model.eval()
         self._torch = torch
         self._tokenizer = tokenizer
         self._model = model
+
+    def _load_adapter(self, base_model: Any) -> Any:
+        try:
+            from peft import PeftModel
+        except ImportError as exc:
+            raise RuntimeError(
+                "LoRA adapter inference requires peft; install the project training extra"
+            ) from exc
+        adapter_path = Path(self.config.adapter_path or "").expanduser().resolve()
+        if not adapter_path.is_dir():
+            raise FileNotFoundError(f"adapter directory does not exist: {adapter_path}")
+        config_path = adapter_path / "adapter_config.json"
+        if not config_path.is_file():
+            raise FileNotFoundError(f"adapter_config.json does not exist: {config_path}")
+        weight_candidates = [
+            adapter_path / "adapter_model.safetensors",
+            adapter_path / "adapter_model.bin",
+        ]
+        weight_path = next((path for path in weight_candidates if path.is_file()), None)
+        if weight_path is None:
+            raise FileNotFoundError(f"adapter weights do not exist in: {adapter_path}")
+        try:
+            adapter_config = json.loads(config_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid PEFT adapter config: {config_path}") from exc
+        self._resolved_adapter_path = str(adapter_path)
+        self._adapter_metadata = {
+            "adapter_config_sha256": _sha256_file(config_path),
+            "adapter_weight_file": weight_path.name,
+            "adapter_weight_bytes": weight_path.stat().st_size,
+            "adapter_weight_sha256": _sha256_file(weight_path),
+            "adapter_base_model_name_or_path": adapter_config.get("base_model_name_or_path"),
+            "adapter_revision": adapter_config.get("revision"),
+            "peft_type": adapter_config.get("peft_type"),
+            "r": adapter_config.get("r"),
+            "lora_alpha": adapter_config.get("lora_alpha"),
+        }
+        return PeftModel.from_pretrained(base_model, str(adapter_path), is_trainable=False)
 
     def _resolve_model_path(self) -> str:
         if self.config.source == "local":
@@ -205,8 +248,10 @@ class QwenTransformersPolicy:
             "configured_revision": self.config.revision,
             "source": self.config.source,
             "resolved_model_path": self._resolved_model_path,
+            "adapter_path": self._resolved_adapter_path,
+            "adapter": dict(self._adapter_metadata) if self._adapter_metadata else None,
         }
-        for package in ("torch", "transformers", "modelscope", "ms-swift"):
+        for package in ("torch", "transformers", "modelscope", "ms-swift", "peft"):
             try:
                 result[f"{package}_version"] = importlib_metadata.version(package)
             except importlib_metadata.PackageNotFoundError:
@@ -217,3 +262,11 @@ class QwenTransformersPolicy:
             commit_hash = getattr(self._model.config, "_commit_hash", None)
             result["loaded_commit_hash"] = commit_hash
         return result
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()

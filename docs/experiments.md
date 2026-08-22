@@ -137,6 +137,22 @@ python scripts/run_sft.py \
 
 该配置只运行 20 step LoRA。需要确认日志中出现有限且非 NaN 的 loss、global step 持续增加、Validation loss 可以计算、LoRA checkpoint 成功保存且 CUDA 没有 OOM。通过这些检查不等于 SFT 有效果；正式对比必须使用扩展后的 Train 数据，并重新执行同一套 Environment Evaluation。
 
+正式数据、训练和 adapter 评测命令为：
+
+```bash
+python scripts/generate_formal_data.py
+python scripts/build_formal_sft_data.py
+python scripts/run_sft.py --config configs/sft/qwen2_5_1_5b_lora_formal_v1.json
+
+python scripts/run_qwen_baseline.py \
+  --tasks data/processed/calendar_formal_v1/tasks/validation.jsonl \
+  --adapter-path experiments/results/qwen2_5_1_5b_sft_formal_v1/trainer_output/<checkpoint> \
+  --run-name qwen2_5_1_5b_sft_formal_v1_validation
+python scripts/run_eval.py --run-name qwen2_5_1_5b_sft_formal_v1_validation
+```
+
+Base 和 adapter 运行必须使用相同任务快照哈希。`scripts/compare_runs.py` 会拒绝比较不同快照；`scripts/select_failure_targets.py` 只接受 LoRA Validation 运行，并拒绝读取 Test 结果来选择 Hard-case 类别。
+
 ## 5. 正式对比规则
 
 Base、SFT、Failure-SFT 和 GRPO 之间必须尽量保持：

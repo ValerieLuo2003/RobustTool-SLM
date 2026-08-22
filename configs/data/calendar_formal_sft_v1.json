@@ -1,0 +1,37 @@
+{
+  "dataset_name": "calendar-formal-sft-v1",
+  "generator_version": "calendar-formal-sft-v1",
+  "seed": 20260823,
+  "split_category_counts": {
+    "train": {
+      "list_events": 900,
+      "create_event": 1500,
+      "update_event": 900,
+      "delete_event": 600,
+      "check_availability": 900,
+      "clarify": 450,
+      "no_tool": 300,
+      "multi_step": 450
+    },
+    "validation": {
+      "list_events": 75,
+      "create_event": 125,
+      "update_event": 75,
+      "delete_event": 50,
+      "check_availability": 75,
+      "clarify": 38,
+      "no_tool": 25,
+      "multi_step": 37
+    },
+    "test": {
+      "list_events": 150,
+      "create_event": 250,
+      "update_event": 150,
+      "delete_event": 100,
+      "check_availability": 150,
+      "clarify": 75,
+      "no_tool": 50,
+      "multi_step": 75
+    }
+  }
+}

@@ -17,6 +17,7 @@ dev = ["pytest>=8,<9"]
 train = [
   "ms-swift>=3.8",
   "transformers>=4.51",
+  "peft>=0.15",
 ]
 
 [tool.setuptools.packages.find]

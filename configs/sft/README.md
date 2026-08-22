@@ -32,3 +32,20 @@ python scripts/run_sft.py \
 ```
 
 ms-swift 官方 Agent 数据协议要求 `tools` 是 JSON 字符串，`tool_call` 和 `tool_response` 消息的 `content` 也必须是 JSON 字符串。本项目的转换器会检查这些约束，并拒绝 task_id 交叉、不可用工具、无效 JSON 和空 Assistant target。
+
+正式配置为 `qwen2_5_1_5b_lora_formal_v1.json`：
+
+- 6000 条 Train、500 条 Validation，Test 不进入配置；
+- 1 epoch、有效 batch size 8；
+- BF16 LoRA，rank 16、alpha 32、dropout 0.05；
+- learning rate `1e-4`，cosine scheduler，3% warmup；
+- 每 250 optimizer step 评测和保存，保留最近两个 checkpoint；
+- 输出到 `experiments/results/qwen2_5_1_5b_sft_formal_v1/`。
+
+```bash
+python scripts/generate_formal_data.py
+python scripts/build_formal_sft_data.py
+python scripts/run_sft.py --config configs/sft/qwen2_5_1_5b_lora_formal_v1.json
+```
+
+该配置不包含 `max_steps`，由 6000 条数据、1 epoch 和梯度累积 8 决定约 750 个 optimizer step。正式运行前必须保持配置文件不变；如需改超参数，应复制为新版本而不是覆盖 v1。

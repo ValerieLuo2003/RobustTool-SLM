@@ -45,7 +45,7 @@ Failure-aware SFT
 
 ## 当前完成到哪里
 
-目前已经完成 Week 1 基础框架、Qwen toy Base Inference 和 ms-swift LoRA 训练链路 smoke；正式规模 SFT、Failure-SFT 与 GRPO 尚未开始。
+目前已经完成 Week 1 基础框架、Qwen toy Base Inference、ms-swift LoRA 训练链路 smoke，以及正式 SFT 数据生成和审计；正式 LoRA 训练、Failure-SFT 与 GRPO 尚未完成。
 
 | 模块 | 当前状态 | 说明 |
 |---|---|---|
@@ -53,11 +53,12 @@ Failure-aware SFT
 | Calendar 工具环境 | 已完成 | 5 个真实可执行工具，状态完全在本地维护 |
 | Task / Trajectory Schema | 已完成 | 支持完整记录用户、工具调用、工具结果和最终回答 |
 | Toy Benchmark | 已完成 | 25 条确定性 Calendar 任务，按 15/5/5 划分 |
+| 正式 Calendar 数据 | 已完成 | 6000/500/1000，覆盖八类任务和三种多步状态依赖 |
 | Oracle / Random Baseline | 已完成 | 不依赖模型，用来验证环境与评测器 |
 | 第一版 Evaluator | 已完成 | 支持分层指标、环境重放和失败分类 |
 | 单元测试 | 已完成 | 环境、工具、数据、轨迹、指标和评测均有覆盖 |
 | Qwen Base Inference | 已完成 toy smoke | 已固定 Qwen2.5-1.5B-Instruct，并在 RTX 3090 完成环境推理与自动评测 |
-| SFT | 已完成训练链路 smoke | ms-swift Agent 格式、LoRA forward/backward、Validation loss 与 checkpoint 均已验证 |
+| SFT | 正式配置已冻结 | 20-step smoke 已通过；6000 条正式 Train 已构造，等待正式训练与统一评测 |
 | Failure-SFT | 未开始 | 需要先完成正式 SFT 与失败统计 |
 | 鲁棒性 Benchmark | 未开始 | Week 3 |
 | GRPO | 未开始 | Week 4 |
@@ -163,6 +164,30 @@ python scripts/run_sft.py \
 
 这一步只使用 15 条 Train 与 5 条 Validation Oracle 轨迹运行 20 step LoRA，用来检查 ms-swift 格式、forward、backward、loss、显存和 checkpoint。RTX 3090 smoke 已通过，但它不是正式训练，也不会读取 Clean Test。数据和训练输出都被 `.gitignore` 排除，只提交生成器和配置。
 
+### 5. 生成正式 SFT 数据并启动正式训练
+
+```bash
+python scripts/generate_formal_data.py
+python scripts/build_formal_sft_data.py
+python scripts/run_sft.py \
+  --config configs/sft/qwen2_5_1_5b_lora_formal_v1.json
+```
+
+正式配置生成 6000 条 Train、500 条 Validation 和 1000 条 Clean Test。只有 Train/Validation 会转换为 ms-swift Agent 轨迹；Test 只参与哈希和隔离审计。生成器要求 task ID 和用户请求全局唯一，执行全量 Oracle 重放，并拒绝任何不能达到目标状态的数据。
+
+LoRA checkpoint 使用原来的推理入口评测：
+
+```bash
+python scripts/run_qwen_baseline.py \
+  --tasks data/processed/calendar_formal_v1/tasks/validation.jsonl \
+  --adapter-path experiments/results/qwen2_5_1_5b_sft_formal_v1/trainer_output/<checkpoint> \
+  --run-name qwen2_5_1_5b_sft_formal_v1_validation
+
+python scripts/run_eval.py --run-name qwen2_5_1_5b_sft_formal_v1_validation
+```
+
+Base 与 LoRA adapter 复用同一个 `QwenTransformersPolicy`、Environment Rollout 和 Evaluator。Adapter 配置与权重哈希会写入运行产物，防止误用 checkpoint。
+
 ## Calendar 工具环境
 
 当前环境包含 5 个工具：
@@ -203,7 +228,7 @@ Calendar v1 的时间规则：
 
 ## 数据与任务类型
 
-当前 toy benchmark 共 25 条任务：
+用于开发期 smoke 的 toy benchmark 共 25 条任务：
 
 | 划分 | 数量 | 用途 |
 |---|---:|---|
@@ -212,6 +237,8 @@ Calendar v1 的时间规则：
 | Test / Clean Test | 5 | 冻结的基础测试集 |
 
 任务覆盖事件查询、创建、更新、删除、空闲检查、信息不完整时的澄清，以及不需要调用工具的回答。
+
+正式 `calendar-formal-sft-v1` 进一步覆盖表达改写、可选参数组合、相似功能工具选择、工具顺序打乱，以及 `check → create`、`list → update`、`list → delete` 三种多步状态依赖。三个划分使用不同模板，全部 7500 条用户请求全局去重。
 
 生成数据时会同步创建 `data/eval/manifest.json`，其中记录生成器版本、随机种子、各划分数量和 SHA-256。Week 1 中 `test` 与 `clean_test` 的哈希必须一致。
 
@@ -312,7 +339,7 @@ robust-tool-slm/
 
 ### Week 2：Qwen Baseline 与 SFT
 
-主模型固定为 Qwen2.5-1.5B-Instruct。真实 GPU toy 基线和 20-step LoRA smoke 已完成；下一步扩展正式 Train/Validation 数据并进行可比较的 LoRA SFT，随后复用同一 Evaluator 对比 Base 与 SFT。
+主模型固定为 Qwen2.5-1.5B-Instruct。真实 GPU toy 基线、20-step LoRA smoke、6000/500/1000 正式数据和 adapter 评测接口已完成；下一步在 RTX 3090 运行正式 LoRA SFT，并在冻结的 Validation/Clean Test 上比较 Base 与 SFT。
 
 ### Week 3：失败驱动优化
 

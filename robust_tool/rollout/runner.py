@@ -35,8 +35,50 @@ class OraclePolicy:
         if completed < len(task.reference_calls):
             return AgentAction("call", task.reference_calls[completed])
         if task.expected_action == "clarify":
-            return AgentAction("clarify", content="Could you provide the date, time, duration, and attendees?")
-        return AgentAction("respond", content="Done." if completed else "I can help manage calendar events and availability.")
+            response = str(
+                task.metadata.get(
+                    "oracle_response",
+                    "Could you provide the date, time, duration, and attendees?",
+                )
+            )
+            return AgentAction("clarify", content=response)
+        if task.expected_action == "respond":
+            response = str(
+                task.metadata.get(
+                    "oracle_response",
+                    "I can help manage calendar events and availability without changing anything.",
+                )
+            )
+            return AgentAction("respond", content=response)
+        return AgentAction("respond", content=self._final_response(trajectory))
+
+    @staticmethod
+    def _final_response(trajectory: Trajectory) -> str:
+        tool_messages = [
+            message for message in trajectory.messages if message.role == "tool" and message.tool_result
+        ]
+        if not tool_messages:
+            return "Done."
+        result = dict(tool_messages[-1].tool_result or {})
+        if not result.get("ok"):
+            error = result.get("error") or {}
+            return f"The calendar action failed: {error.get('message', 'unknown error')}."
+        data = result.get("data") or {}
+        tool_name = result.get("tool_name")
+        if tool_name == "list_events":
+            events = data.get("events", [])
+            titles = ", ".join(str(event.get("title", "untitled")) for event in events)
+            return f"I found {data.get('count', len(events))} events" + (f": {titles}." if titles else ".")
+        if tool_name == "check_availability":
+            return "That time is available." if data.get("available") else "That time conflicts with an existing event."
+        if tool_name in {"create_event", "update_event"}:
+            event = data.get("event") or {}
+            verb = "created" if tool_name == "create_event" else "updated"
+            return f"I {verb} {event.get('title', 'the event')} from {event.get('start')} to {event.get('end')}."
+        if tool_name == "delete_event":
+            event = data.get("deleted_event") or {}
+            return f"I deleted {event.get('title', 'the event')}."
+        return "The calendar action completed successfully."
 
 
 class RandomPolicy:

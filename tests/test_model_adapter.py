@@ -20,6 +20,7 @@ class ModelAdapterTests(unittest.TestCase):
         self.assertEqual(config.model_id, "Qwen/Qwen2.5-1.5B-Instruct")
         self.assertRegex(config.revision, r"^[0-9a-f]{40}$")
         self.assertFalse(config.do_sample)
+        self.assertIsNone(config.adapter_path)
 
     def test_invalid_local_config_is_rejected(self) -> None:
         record = ModelInferenceConfig(
@@ -32,6 +33,14 @@ class ModelAdapterTests(unittest.TestCase):
             path.write_text(json.dumps(record), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "local_model_path"):
                 load_model_config(path)
+
+    def test_blank_adapter_path_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "adapter_path"):
+            ModelInferenceConfig(
+                model_id="example/model",
+                revision="abc",
+                adapter_path="   ",
+            )
 
     def test_qwen_tool_tag_is_parsed(self) -> None:
         parsed = parse_assistant_output(
