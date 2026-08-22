@@ -57,7 +57,8 @@ Failure-aware SFT
 | 第一版 Evaluator | 已完成 | 支持分层指标、环境重放和失败分类 |
 | 单元测试 | 已完成 | 环境、工具、数据、轨迹、指标和评测均有覆盖 |
 | Qwen Base Inference | 进行中 | 已固定 Qwen2.5-1.5B-Instruct，并完成配置、解析器和推理入口 |
-| SFT / Failure-SFT | 未开始 | Week 2～3 |
+| SFT | 进行中 | 已完成 ms-swift Agent 数据转换和 20-step LoRA smoke 配置 |
+| Failure-SFT | 未开始 | 需要先完成正式 SFT 与失败统计 |
 | 鲁棒性 Benchmark | 未开始 | Week 3 |
 | GRPO | 未开始 | Week 4 |
 
@@ -151,6 +152,16 @@ python scripts/run_eval.py \
 ```
 
 模型权重由 ModelScope 下载到本机缓存，不会写入 Git 仓库。推理过程使用工具的标准 JSON Schema 和模型 Chat Template；模型看不到 `goal_state` 或 `reference_calls`。每一步的原始输出、token 数、延迟和峰值显存都会随 Trajectory 保存。
+
+### 4. 构建并检查 SFT smoke 数据
+
+```bash
+python scripts/build_sft_data.py
+python scripts/run_sft.py \
+  --config configs/sft/qwen2_5_1_5b_lora_smoke.json
+```
+
+这一步只使用 15 条 Train 与 5 条 Validation Oracle 轨迹运行 20 step LoRA，用来检查 ms-swift 格式、forward、backward、loss、显存和 checkpoint。它不是正式训练，也不会读取 Clean Test。数据和训练输出都被 `.gitignore` 排除，只提交生成器和配置。
 
 ## Calendar 工具环境
 

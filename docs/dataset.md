@@ -39,7 +39,30 @@ v2 在首次 Qwen Validation smoke test 后修复了任务文本歧义：凡是�
 
 当前任务大多为单工具 smoke test。真正的多工具、多轮、工具错误恢复和扰动任务将在后续阶段加入。
 
-## 4. Task Schema
+## 4. ms-swift SFT 数据
+
+`scripts/build_sft_data.py` 使用 Train 和 Validation Task 的 Oracle 轨迹构造官方 Agent 格式：
+
+```json
+{
+  "task_id": "calendar_create_001",
+  "source_split": "train",
+  "tools": "[{...}]",
+  "messages": [
+    {"role": "system", "content": "..."},
+    {"role": "user", "content": "..."},
+    {"role": "tool_call", "content": "{...}"},
+    {"role": "tool_response", "content": "{...}"},
+    {"role": "assistant", "content": "Done."}
+  ]
+}
+```
+
+其中 `tools`、`tool_call.content` 和 `tool_response.content` 都是 JSON 字符串。`goal_state`、`reference_calls` 和 Failure 标签不会进入训练记录。生成前会同时加载 Test task_id 做集合交叉检查，但 Test 内容不会被转换或写入训练文件。
+
+当前 `calendar-sft-smoke-v1` 只有 15 条 Train 和 5 条 Validation，用途是验证格式、loss、反向传播、LoRA checkpoint 和显存，不用于报告训练收益。正式 SFT 数据仍需扩展到 5k～15k，并增加表达改写、参数组合、多步和澄清轨迹。
+
+## 5. Task Schema
 
 每条 Task 包含：
 
@@ -108,7 +131,7 @@ v2 在首次 Qwen Validation smoke test 后修复了任务文本歧义：凡是�
 }
 ```
 
-## 5. ToolCall Schema
+## 6. ToolCall Schema
 
 标准调用格式为：
 
@@ -137,7 +160,7 @@ v2 在首次 Qwen Validation smoke test 后修复了任务文本歧义：凡是�
 
 这样 Evaluator 才能把 `invalid_json` 与工具或参数错误分开统计。
 
-## 6. Trajectory Schema
+## 7. Trajectory Schema
 
 Trajectory 保存完整交互，而不是只保存最终答案：
 
@@ -173,9 +196,9 @@ Trajectory 保存完整交互，而不是只保存最终答案：
 }
 ```
 
-未来用于 SFT 的 trajectory 会保持同样的 user / assistant / tool 顺序，再由 `converter_swift.py` 转为 ms-swift 所需格式。
+SFT trajectory 保持同样的 user / assistant / tool 顺序，再由 `converter_swift.py` 转为 ms-swift 所需格式。
 
-## 7. 确定性与版本管理
+## 8. 确定性与版本管理
 
 生成命令：
 
@@ -203,7 +226,7 @@ manifest.json         版本、数量与 SHA-256
 5. 运行全量测试；
 6. 在实验文档中记录变更原因。
 
-## 8. 后续扩展计划
+## 9. 后续扩展计划
 
 正式训练数据计划扩展到：
 

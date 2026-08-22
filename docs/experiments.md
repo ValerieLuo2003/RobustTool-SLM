@@ -127,6 +127,16 @@ python scripts/run_eval.py \
 
 Smoke test 只验证模型下载、Chat Template、工具解析、环境执行、显存和实验产物链路。通过后才运行完整 Validation；协议冻结后再运行 Clean Test，不能根据 Test 结果修改提示词或解析规则。
 
+SFT 训练链路 smoke 使用配置文件启动：
+
+```bash
+python scripts/build_sft_data.py
+python scripts/run_sft.py \
+  --config configs/sft/qwen2_5_1_5b_lora_smoke.json
+```
+
+该配置只运行 20 step LoRA。需要确认日志中出现有限且非 NaN 的 loss、global step 持续增加、Validation loss 可以计算、LoRA checkpoint 成功保存且 CUDA 没有 OOM。通过这些检查不等于 SFT 有效果；正式对比必须使用扩展后的 Train 数据，并重新执行同一套 Environment Evaluation。
+
 ## 5. 正式对比规则
 
 Base、SFT、Failure-SFT 和 GRPO 之间必须尽量保持：

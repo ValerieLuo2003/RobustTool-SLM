@@ -5,8 +5,14 @@ import unittest
 import json
 from pathlib import Path
 
+from robust_tool.data.converter_swift import (
+    assert_disjoint_splits,
+    convert_trajectories_to_swift,
+)
 from robust_tool.data.generator import generate_calendar_toy_tasks, write_calendar_toy_dataset
 from robust_tool.data.schemas import load_tasks
+from robust_tool.models.config import load_model_config
+from robust_tool.rollout.runner import OraclePolicy, run_policy
 
 
 class DatasetTests(unittest.TestCase):
@@ -56,6 +62,34 @@ class DatasetTests(unittest.TestCase):
                 manifest["files"]["test"]["sha256"],
                 manifest["files"]["clean_test"]["sha256"],
             )
+
+    def test_swift_agent_records_are_json_string_encoded_without_gold_leakage(self) -> None:
+        tasks = generate_calendar_toy_tasks()[:2]
+        config_path = Path(__file__).parents[1] / "configs" / "models" / "qwen2_5_1_5b_instruct.json"
+        system_prompt = load_model_config(config_path).system_prompt
+        records = convert_trajectories_to_swift(
+            tasks,
+            run_policy(tasks, OraclePolicy()),
+            system_prompt=system_prompt,
+        )
+        self.assertEqual(len(records), 2)
+        for record in records:
+            self.assertIsInstance(record["tools"], str)
+            self.assertIsInstance(json.loads(record["tools"]), list)
+            roles = [message["role"] for message in record["messages"]]
+            self.assertIn("tool_call", roles)
+            self.assertIn("tool_response", roles)
+            serialized = json.dumps(record, ensure_ascii=False)
+            self.assertNotIn("goal_state", serialized)
+            self.assertNotIn("reference_calls", serialized)
+            for message in record["messages"]:
+                if message["role"] in {"tool_call", "tool_response"}:
+                    self.assertIsInstance(json.loads(message["content"]), dict)
+
+    def test_split_overlap_is_rejected_before_sft_conversion(self) -> None:
+        task = generate_calendar_toy_tasks()[0]
+        with self.assertRaisesRegex(ValueError, "appears in both"):
+            assert_disjoint_splits({"train": [task], "validation": [task]})
 
 
 if __name__ == "__main__":
