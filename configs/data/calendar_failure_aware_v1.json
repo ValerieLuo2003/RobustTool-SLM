@@ -1,0 +1,10 @@
+{
+  "dataset_name": "calendar-failure-aware-v1",
+  "generator_version": "calendar-failure-aware-v1",
+  "seed": 20260824,
+  "target_counts": {
+    "wrong_argument_value": 1200,
+    "ignore_tool_result": 1000,
+    "missing_argument": 800
+  }
+}

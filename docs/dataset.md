@@ -8,7 +8,7 @@
 2. Task 与 Trajectory 是否能够完整表达工具 Agent 任务；
 3. Evaluator 是否能正确区分成功、格式错误、参数错误、工具错误和任务失败。
 
-上述三件事已通过 toy benchmark 和 LoRA smoke 验证，当前已经进入 6000 条正式 Train 轨迹阶段。
+上述三件事已通过 toy benchmark、LoRA smoke、6000 条正式 SFT 和 500 条统一 Validation 评测验证。当前进入 Failure-aware Train 数据阶段。
 
 ## 2. 当前规模与划分
 
@@ -21,7 +21,7 @@
 | Test | 5 | 冻结基础评测 |
 | Clean Test | 5 | 当前与 Test 完全相同，作为后续鲁棒性对照 |
 
-Train、Validation 和 Test 的 `task_id` 不允许重叠。未来构造 Hard Cases 时只能读取 Train 或模型在开发集上的失败，不能读取 Test 内容。
+Train、Validation 和 Test 的 `task_id` 不允许重叠。构造 Hard Cases 时只允许使用模型在 Validation 上汇总出的失败类别、名次和比例，不能复制 Validation 失败样本，也不能用 Test 结果选择数据方向。
 
 v2 在首次 Qwen Validation smoke test 后修复了任务文本歧义：凡是参考参数包含绝对日期，用户请求也必须显式给出年份；工具 Schema 同时明确时间值必须使用不带时区后缀的本地 ISO-8601 格式。该修改发生在正式 Clean Test 基线冻结前。
 
@@ -47,7 +47,7 @@ v2 在首次 Qwen Validation smoke test 后修复了任务文本歧义：凡是�
 - `clarify`：用户缺少时间、日期、时长等必要信息时要求澄清；
 - `respond`：用户只询问能力时直接回答，不调用工具。
 
-正式数据包含八类配额：查询、创建、更新、删除、空闲检查、澄清、无工具和多步任务。多步任务包括 `check_availability → create_event`、`list_events → update_event` 和 `list_events → delete_event`，后一步需要使用前一步工具结果中的状态或 event ID。工具错误恢复与扰动任务仍留到 Failure-aware 阶段。
+正式数据包含八类配额：查询、创建、更新、删除、空闲检查、澄清、无工具和多步任务。多步任务包括 `check_availability → create_event`、`list_events → update_event` 和 `list_events → delete_event`，后一步需要使用前一步工具结果中的状态或 event ID。工具错误恢复与扰动任务留在后续 Robustness 阶段。
 
 ## 4. ms-swift SFT 数据
 
@@ -72,7 +72,42 @@ v2 在首次 Qwen Validation smoke test 后修复了任务文本歧义：凡是�
 
 `calendar-sft-smoke-v1` 的 15/5 轨迹只用于训练链路验证。正式转换入口是 `scripts/build_formal_sft_data.py`，输出 6000/500 条 Agent 轨迹，覆盖划分独立的表达改写、参数组合、多步、澄清和无工具决策。Test 文件只做集合与哈希检查，不会被转换。
 
-## 5. Task Schema
+## 5. Failure-aware Train 数据
+
+正式 SFT 在 500 条 Validation 上达到 92% Task Success。失败统计的 Top 3 是：
+
+| 失败标签 | 失败任务数 | 占 500 条任务 |
+|---|---:|---:|
+| `wrong_argument_value` | 28 | 5.6% |
+| `ignore_tool_result` | 15 | 3.0% |
+| `missing_argument` | 11 | 2.2% |
+
+`configs/data/calendar_failure_aware_v1.json` 冻结 3000 条全新 Train 数据：
+
+| 目标失败 | 数量 | 主要任务族 |
+|---|---:|---|
+| `wrong_argument_value` | 1200 | 半开时间边界、窄时间窗口、精确创建参数、相似事件的精确更新 |
+| `ignore_tool_result` | 1000 | list 后按返回 ID 更新/删除、availability 后创建/停止、create 后按新 ID 更新 |
+| `missing_argument` | 800 | 创建必填字段、更新所需 event ID、时间区间端点、缺少必填信息时澄清 |
+
+生成命令：
+
+```bash
+python scripts/build_hard_cases.py \
+  --failure-targets experiments/results/qwen2_5_1_5b_sft_formal_v1_validation_new3090/failure_targets.json
+```
+
+生成器遵循以下隔离规则：
+
+1. Validation 只提供失败标签、排名、计数和任务快照哈希；
+2. 不读取或改写具体失败任务的用户问题与参考调用；
+3. Test 只用于哈希及 task ID/规范化问题文本碰撞审计，不参与生成；
+4. Hard-case 只标记为 Train，不生成 Validation 或 Test 文件；
+5. 新数据与原 Train、Validation、Test 的 task ID 和规范化问题文本都必须零重叠；
+6. 3000 条任务必须通过同一 Calendar Environment 的全量 Oracle 重放，失败一条就拒绝写出；
+7. 最终同时保存 Task、Trajectory、ms-swift Agent JSONL 和带 SHA-256 的 manifest。
+
+## 6. Task Schema
 
 每条 Task 包含：
 
@@ -141,7 +176,7 @@ v2 在首次 Qwen Validation smoke test 后修复了任务文本歧义：凡是�
 }
 ```
 
-## 6. ToolCall Schema
+## 7. ToolCall Schema
 
 标准调用格式为：
 
@@ -170,7 +205,7 @@ v2 在首次 Qwen Validation smoke test 后修复了任务文本歧义：凡是�
 
 这样 Evaluator 才能把 `invalid_json` 与工具或参数错误分开统计。
 
-## 7. Trajectory Schema
+## 8. Trajectory Schema
 
 Trajectory 保存完整交互，而不是只保存最终答案：
 
@@ -208,7 +243,7 @@ Trajectory 保存完整交互，而不是只保存最终答案：
 
 SFT trajectory 保持同样的 user / assistant / tool 顺序，再由 `converter_swift.py` 转为 ms-swift 所需格式。
 
-## 8. 确定性与版本管理
+## 9. 确定性与版本管理
 
 生成命令：
 
@@ -236,14 +271,12 @@ manifest.json         版本、数量与 SHA-256
 5. 运行全量测试；
 6. 在实验文档中记录变更原因。
 
-## 9. 后续扩展计划
+## 10. 后续扩展计划
 
-正式训练数据计划扩展到：
+当前正式规模已经达到 SFT 6000 条 Train 加 Failure-aware 3000 条 Train。后续扩展重点不是继续无目的增加数量，而是：
 
-- SFT Train：5k～15k trajectories；
-- Validation：500～1000 tasks；
-- Test：约 1000 tasks；
-- 单独保留 `clean_test` 与 `robust_test`；
+- 保持 500 条 Validation 和 1000 条冻结 Clean Test；
+- 单独构建 `robust_test`；
 - 新增 Calendar、Travel、Shopping、Weather 等 domain；
 - 新增多工具、多轮、澄清、无工具、工具故障和恢复任务。
 

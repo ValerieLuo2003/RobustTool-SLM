@@ -327,15 +327,28 @@ Evaluator 可以只使用 Task 文件和 `trajectories.jsonl` 重新计算全部
 
 每一步推理记录输入与输出 token 数、延迟、原始生成文本和 CUDA 峰值显存。实验目录还保存本次实际使用的 Task 快照，因此少量 smoke test 与完整 Validation/Test 运行都能使用相同 Evaluator 重算。
 
-## 15. 当前有意延后的内容
+## 15. Failure-aware 数据接口
+
+正式 SFT 与 Base 共用相同模型适配层、Rollout 和 Evaluator。SFT Validation 只向数据阶段输出聚合后的失败标签、排名、计数、任务数和任务快照哈希，不直接输出可供改写的失败样本内容。
+
+`robust_tool.data.hard_cases` 负责核心逻辑：
+
+1. 校验 failure targets 确实来自 LoRA Validation；
+2. 要求配置中的目标类别与 Validation Top 3 完全一致；
+3. 使用独立 seed 和独立模板生成全新 Train Task；
+4. 检查新任务与原 Train、Validation、Test 的 ID 和规范化问题文本零重叠；
+5. 标记每条任务的 `target_failure`、`hard_case_family`、生成器版本和来源快照哈希。
+
+`scripts/build_hard_cases.py` 只负责串联：加载冻结产物、生成 Task、运行 Oracle、调用同一 Evaluator、转换 ms-swift 格式并写 manifest。Test 仅用于碰撞审计，不能影响类别、模板或参数分布。
+
+## 16. 当前有意延后的内容
 
 当前阶段仍有意延后以下内容：
 
-- ms-swift 训练格式的完整适配；
-- 多工具和多轮长任务；
 - 工具超时、不可用、恶意或部分返回等故障注入；
-- 鲁棒性扰动套件；
-- Hard-case Mining；
-- Dense Reward、SFT 和 GRPO。
+- Robustness 扰动套件；
+- Random Augmentation 对照；
+- Failure-SFT 正式训练与评测；
+- Dense Reward 和 GRPO。
 
 这些模块会复用已经冻结的 Task、Trajectory、Environment 和 Evaluator 接口，不能为了某个模型的结果而修改环境真值。

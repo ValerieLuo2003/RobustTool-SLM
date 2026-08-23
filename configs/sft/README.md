@@ -48,4 +48,4 @@ python scripts/build_formal_sft_data.py
 python scripts/run_sft.py --config configs/sft/qwen2_5_1_5b_lora_formal_v1.json
 ```
 
-该配置不包含 `max_steps`，由 6000 条数据、1 epoch 和梯度累积 8 决定约 750 个 optimizer step。正式运行前必须保持配置文件不变；如需改超参数，应复制为新版本而不是覆盖 v1。
+该配置不包含 `max_steps`，由 6000 条数据、1 epoch 和梯度累积 8 决定 750 个 optimizer step。正式运行已经完成，最低 Validation loss 对应 checkpoint-750；如需改超参数或训练 Failure-SFT，应复制为新版本，不得覆盖这份已产生正式结果的 v1 配置。

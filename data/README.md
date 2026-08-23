@@ -13,7 +13,19 @@ data/
 
 ## `processed/`
 
-保存清洗、去重、划分并转换后的训练数据，例如未来的 ms-swift messages/trajectory 格式。默认被 Git 忽略，避免误提交大规模生成数据。
+保存清洗、去重、划分并转换后的训练数据，包括正式 SFT 与 Failure-aware 的 Task、Trajectory、ms-swift Agent JSONL 和 manifest。默认被 Git 忽略，避免误提交大规模生成数据。
+
+当前两个可复现数据版本为：
+
+- `calendar_formal_v1`：6000 Train / 500 Validation / 1000 Test；
+- `calendar_failure_aware_v1`：根据 SFT Validation Top 3 failure 生成的 3000 条全新 Train，不包含 Validation/Test 输出。
+
+Failure-aware 数据需要先有正式 SFT Validation 的 `failure_targets.json`，然后运行：
+
+```bash
+python scripts/build_hard_cases.py \
+  --failure-targets experiments/results/qwen2_5_1_5b_sft_formal_v1_validation_new3090/failure_targets.json
+```
 
 ## `eval/`
 

@@ -15,6 +15,13 @@ from robust_tool.data.formal_generator import (
     generate_calendar_formal_splits,
     load_formal_dataset_config,
 )
+from robust_tool.data.hard_cases import (
+    FailureAwareDatasetConfig,
+    FailureTargetSelection,
+    audit_failure_aware_tasks,
+    generate_failure_aware_tasks,
+    load_failure_aware_config,
+)
 from robust_tool.data.generator import generate_calendar_toy_tasks, write_calendar_toy_dataset
 from robust_tool.eval.evaluator import evaluate_dataset
 from robust_tool.data.schemas import load_tasks
@@ -32,6 +39,36 @@ class DatasetTests(unittest.TestCase):
             split_category_counts={
                 split: {category: 2 for category in FORMAL_CATEGORIES}
                 for split in ("train", "validation", "test")
+            },
+        )
+
+    @staticmethod
+    def _failure_selection() -> FailureTargetSelection:
+        return FailureTargetSelection.from_dict(
+            {
+                "selection_protocol": "top failures from SFT Validation only",
+                "source_run": "validation-run",
+                "source_git_commit": "abc123",
+                "task_snapshot_sha256": "a" * 64,
+                "validation_task_count": 5,
+                "selected_failures": [
+                    {"rank": 1, "failure": "wrong_argument_value", "count": 28},
+                    {"rank": 2, "failure": "ignore_tool_result", "count": 15},
+                    {"rank": 3, "failure": "missing_argument", "count": 11},
+                ],
+            }
+        )
+
+    @staticmethod
+    def _small_failure_config(seed: int = 456) -> FailureAwareDatasetConfig:
+        return FailureAwareDatasetConfig(
+            dataset_name="calendar-failure-test",
+            generator_version="calendar-failure-aware-v1",
+            seed=seed,
+            target_counts={
+                "wrong_argument_value": 20,
+                "ignore_tool_result": 20,
+                "missing_argument": 20,
             },
         )
 
@@ -173,6 +210,81 @@ class DatasetTests(unittest.TestCase):
         serialized = json.dumps(config)
         self.assertNotIn("test.jsonl", serialized)
         self.assertNotIn("clean_test", serialized)
+
+    def test_failure_aware_generator_is_deterministic_train_only_and_disjoint(self) -> None:
+        config = self._small_failure_config()
+        selection = self._failure_selection()
+        left = generate_failure_aware_tasks(config, selection)
+        right = generate_failure_aware_tasks(config, selection)
+        self.assertEqual([task.to_dict() for task in left], [task.to_dict() for task in right])
+        source = generate_calendar_toy_tasks()
+        source_splits = {
+            split: [task for task in source if task.metadata["split"] == split]
+            for split in ("train", "validation", "test")
+        }
+        audit = audit_failure_aware_tasks(left, config, selection, source_splits)
+        self.assertEqual(audit["count"], 60)
+        self.assertEqual(audit["source_overlap"], {"task_ids": 0, "normalized_user_queries": 0})
+        self.assertFalse(audit["test_content_used_for_generation"])
+        self.assertTrue(all(task.metadata["split"] == "train" for task in left))
+        self.assertTrue(all(task.metadata["target_failure"] in task.failure_tags for task in left))
+
+    def test_failure_aware_oracle_executes_every_target_family(self) -> None:
+        tasks = generate_failure_aware_tasks(
+            self._small_failure_config(),
+            self._failure_selection(),
+        )
+        report = evaluate_dataset(tasks, run_policy(tasks, OraclePolicy(), max_steps=4))
+        self.assertEqual(report.metrics["task_success_rate"].value, 1.0)
+        self.assertEqual(report.metrics["multi_turn_task_success_rate"].value, 1.0)
+        self.assertFalse(report.failure_counts)
+        targets = {task.metadata["target_failure"] for task in tasks}
+        self.assertEqual(
+            targets,
+            {"wrong_argument_value", "ignore_tool_result", "missing_argument"},
+        )
+        dependencies = [
+            task for task in tasks if task.metadata["target_failure"] == "ignore_tool_result"
+        ]
+        self.assertTrue(any(len(task.reference_calls) == 2 for task in dependencies))
+        missing = [task for task in tasks if task.metadata["target_failure"] == "missing_argument"]
+        self.assertTrue(any(task.expected_action == "clarify" for task in missing))
+
+    def test_failure_aware_audit_rejects_source_overlap(self) -> None:
+        config = self._small_failure_config()
+        selection = self._failure_selection()
+        tasks = generate_failure_aware_tasks(config, selection)
+        with self.assertRaisesRegex(ValueError, "overlap source task IDs"):
+            audit_failure_aware_tasks(
+                tasks,
+                config,
+                selection,
+                {"train": [tasks[0]], "validation": [], "test": []},
+            )
+
+    def test_failure_aware_targets_must_match_validation_selection(self) -> None:
+        selection = self._failure_selection()
+        config = FailureAwareDatasetConfig(
+            dataset_name="mismatch",
+            generator_version="calendar-failure-aware-v1",
+            seed=1,
+            target_counts={"wrong_argument_value": 2},
+        )
+        with self.assertRaisesRegex(ValueError, "must exactly match"):
+            generate_failure_aware_tasks(config, selection)
+
+    def test_checked_in_failure_aware_config_freezes_targeted_scale(self) -> None:
+        path = Path(__file__).parents[1] / "configs" / "data" / "calendar_failure_aware_v1.json"
+        config = load_failure_aware_config(path)
+        self.assertEqual(config.size, 3000)
+        self.assertEqual(
+            config.target_counts,
+            {
+                "wrong_argument_value": 1200,
+                "ignore_tool_result": 1000,
+                "missing_argument": 800,
+            },
+        )
 
 
 if __name__ == "__main__":

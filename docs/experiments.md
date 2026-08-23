@@ -125,7 +125,7 @@ python scripts/run_eval.py \
 
 `run_qwen_baseline.py` 会把本次实际使用的任务写入实验目录下的 `tasks.jsonl`。因此 `run_eval.py` 未显式传入 `--tasks` 时，会优先使用该快照，避免 `--limit` 运行和完整数据文件发生 task ID 不匹配。
 
-Smoke test 只验证模型下载、Chat Template、工具解析、环境执行、显存和实验产物链路。通过后才运行完整 Validation；协议冻结后再运行 Clean Test，不能根据 Test 结果修改提示词或解析规则。
+Smoke test 只验证模型下载、Chat Template、工具解析、环境执行、显存和实验产物链路。当前已经完成正式 Validation；Clean Test 仍保持冻结，不能根据 Test 结果修改提示词、解析规则或 Hard-case 方向。
 
 SFT 训练链路 smoke 使用配置文件启动：
 
@@ -153,6 +153,32 @@ python scripts/run_eval.py --run-name qwen2_5_1_5b_sft_formal_v1_validation
 ```
 
 `scripts/select_sft_checkpoint.py` 按最低 Validation loss 选择实际存在且包含完整 adapter 文件的 checkpoint，并输出配置与权重 SHA-256；不允许根据 Test 结果选 checkpoint。Base 和 adapter 运行必须使用相同任务快照哈希。`scripts/compare_runs.py` 会拒绝比较不同快照；`scripts/select_failure_targets.py` 只接受 LoRA Validation 运行，并拒绝读取 Test 结果来选择 Hard-case 类别。
+
+本次已完成的正式运行使用 Qwen2.5-1.5B-Instruct、6000 条 Train、1 epoch、LoRA rank 16。最低 Validation loss 对应 checkpoint-750。在相同 500 条任务快照上：
+
+| 指标 | Base | SFT |
+|---|---:|---:|
+| Tool Selection Accuracy | 91.35% | 94.94% |
+| Argument Semantic Accuracy | 83.49% | 94.52% |
+| Executable Call Rate | 80.16% | 96.69% |
+| Task Success Rate | 66.00% | 92.00% |
+| Multi-turn Task Success Rate | 18.92% | 56.76% |
+| Invalid Tool Call Rate | 18.40% | 2.65% |
+
+这些数字由远程实验目录中的 `metrics.json` 和比较脚本生成，只用于 Validation 方法选择，不代替最终 Test 结果。
+
+Failure-aware 数据阶段使用以下命令：
+
+```bash
+python scripts/select_failure_targets.py \
+  experiments/results/qwen2_5_1_5b_sft_formal_v1_validation_new3090 \
+  --top-k 3
+
+python scripts/build_hard_cases.py \
+  --failure-targets experiments/results/qwen2_5_1_5b_sft_formal_v1_validation_new3090/failure_targets.json
+```
+
+第一条命令已经冻结 `wrong_argument_value`、`ignore_tool_result` 和 `missing_argument`。第二条命令只使用这三个类别作为生成策略，产出 3000 条全新 Train 轨迹并执行全量 Oracle 与跨 split 泄漏审计。它不会把 Validation 失败任务直接改写成训练样本，也不会根据 Test 选择方向。
 
 ## 5. 正式对比规则
 

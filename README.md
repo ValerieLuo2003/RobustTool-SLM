@@ -45,7 +45,7 @@ Failure-aware SFT
 
 ## 当前完成到哪里
 
-目前已经完成 Week 1 基础框架、Qwen toy Base Inference、ms-swift LoRA 训练链路 smoke，以及正式 SFT 数据生成和审计；正式 LoRA 训练、Failure-SFT 与 GRPO 尚未完成。
+目前已经完成 Week 1 基础框架、正式 SFT 数据、RTX 3090 LoRA 训练和同一套 Environment Evaluator 下的 Base vs SFT 对比。SFT Validation 的高频失败已经冻结，Failure-aware Train 数据生成器也已实现；下一步是生成并审计 3000 条针对性轨迹，再训练 Failure-SFT。
 
 | 模块 | 当前状态 | 说明 |
 |---|---|---|
@@ -57,9 +57,10 @@ Failure-aware SFT
 | Oracle / Random Baseline | 已完成 | 不依赖模型，用来验证环境与评测器 |
 | 第一版 Evaluator | 已完成 | 支持分层指标、环境重放和失败分类 |
 | 单元测试 | 已完成 | 环境、工具、数据、轨迹、指标和评测均有覆盖 |
-| Qwen Base Inference | 已完成 toy smoke | 已固定 Qwen2.5-1.5B-Instruct，并在 RTX 3090 完成环境推理与自动评测 |
-| SFT | 正式配置已冻结 | 20-step smoke 已通过；6000 条正式 Train 已构造，等待正式训练与统一评测 |
-| Failure-SFT | 未开始 | 需要先完成正式 SFT 与失败统计 |
+| Qwen Base Inference | 已完成正式 Validation | 已固定 Qwen2.5-1.5B-Instruct，并在 RTX 3090 完成 500 条环境推理与自动评测 |
+| SFT | 已完成正式训练与评测 | 6000 条 Train、1 epoch、LoRA；Validation Task Success 从 66% 提升到 92% |
+| Failure-aware 数据 | 生成器已完成 | 从 SFT Validation 选择 Top 3 failure，冻结 3000 条全新 Train 配额并强制做跨 split 泄漏审计 |
+| Failure-SFT | 待训练 | 先完成 3000 条数据的远程生成与 Oracle 审计，再训练和评测 |
 | 鲁棒性 Benchmark | 未开始 | Week 3 |
 | GRPO | 未开始 | Week 4 |
 
@@ -190,6 +191,26 @@ python scripts/run_eval.py --run-name qwen2_5_1_5b_sft_formal_v1_validation
 ```
 
 `select_sft_checkpoint.py` 只读取训练时的 Validation loss，在实际存在且完整的 LoRA checkpoint 中选择最低值，并将所有候选、最终路径和权重哈希写入 `selected_checkpoint.json`。它不会读取 Test。Base 与 LoRA adapter 复用同一个 `QwenTransformersPolicy`、Environment Rollout 和 Evaluator；Adapter 配置与权重哈希也会写入推理运行产物，防止误用 checkpoint。
+
+本次正式 Validation 结果如下。这里仍不是最终 Test 结论，但可以用于选择 Hard-case 方向：
+
+| 模型 | Tool Selection | Argument Semantic | Executable | Task Success | Multi-turn Success | Invalid Call |
+|---|---:|---:|---:|---:|---:|---:|
+| Base | 91.35% | 83.49% | 80.16% | 66.00% | 18.92% | 18.40% |
+| SFT | 94.94% | 94.52% | 96.69% | 92.00% | 56.76% | 2.65% |
+
+SFT 的 40 个失败任务中，Top 3 标签是 `wrong_argument_value`（28）、`ignore_tool_result`（15）和 `missing_argument`（11）。选择过程只读取 LoRA Validation 运行：
+
+```bash
+python scripts/select_failure_targets.py \
+  experiments/results/qwen2_5_1_5b_sft_formal_v1_validation_new3090 \
+  --top-k 3
+
+python scripts/build_hard_cases.py \
+  --failure-targets experiments/results/qwen2_5_1_5b_sft_formal_v1_validation_new3090/failure_targets.json
+```
+
+`build_hard_cases.py` 根据失败类别生成 3000 条全新 Train 轨迹：1200 条精确参数值、1000 条工具结果依赖、800 条必填参数/澄清。它不会复制 Validation 失败样本；Test 只参与哈希和 ID/问题文本碰撞审计，不进入生成逻辑，也不会产生 Validation/Test 训练输出。每条轨迹都必须通过真实 Calendar Environment 的 Oracle 重放后才会写入 ms-swift 数据。
 
 ## Calendar 工具环境
 
@@ -342,11 +363,11 @@ robust-tool-slm/
 
 ### Week 2：Qwen Baseline 与 SFT
 
-主模型固定为 Qwen2.5-1.5B-Instruct。真实 GPU toy 基线、20-step LoRA smoke、6000/500/1000 正式数据和 adapter 评测接口已完成；下一步在 RTX 3090 运行正式 LoRA SFT，并在冻结的 Validation/Clean Test 上比较 Base 与 SFT。
+主模型固定为 Qwen2.5-1.5B-Instruct。RTX 3090 上的 20-step smoke、6000 条正式 LoRA SFT 和 500 条统一 Validation 对比已经完成。Clean Test 仍保持冻结，留给阶段性方法确定后的正式比较。
 
 ### Week 3：失败驱动优化
 
-统计 SFT 后最高频的 2～3 类失败，针对性生成 Hard Cases，训练 Failure-SFT，并加入扰动 Benchmark 与随机增强对照。
+已从 SFT Validation 冻结 Top 3 failure，并实现 3000 条全新 Train Hard Cases 的确定性生成、Oracle 执行和泄漏审计。下一步生成正式产物、训练 Failure-SFT，再加入扰动 Benchmark 与随机增强对照。
 
 ### Week 4：执行反馈 GRPO
 
