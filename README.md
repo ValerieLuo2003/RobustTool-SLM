@@ -178,15 +178,18 @@ python scripts/run_sft.py \
 LoRA checkpoint 使用原来的推理入口评测：
 
 ```bash
+python scripts/select_sft_checkpoint.py \
+  experiments/results/qwen2_5_1_5b_sft_formal_v1
+
 python scripts/run_qwen_baseline.py \
   --tasks data/processed/calendar_formal_v1/tasks/validation.jsonl \
-  --adapter-path experiments/results/qwen2_5_1_5b_sft_formal_v1/trainer_output/<checkpoint> \
+  --adapter-path <selected_checkpoint.json 中的 selected_checkpoint> \
   --run-name qwen2_5_1_5b_sft_formal_v1_validation
 
 python scripts/run_eval.py --run-name qwen2_5_1_5b_sft_formal_v1_validation
 ```
 
-Base 与 LoRA adapter 复用同一个 `QwenTransformersPolicy`、Environment Rollout 和 Evaluator。Adapter 配置与权重哈希会写入运行产物，防止误用 checkpoint。
+`select_sft_checkpoint.py` 只读取训练时的 Validation loss，在实际存在且完整的 LoRA checkpoint 中选择最低值，并将所有候选、最终路径和权重哈希写入 `selected_checkpoint.json`。它不会读取 Test。Base 与 LoRA adapter 复用同一个 `QwenTransformersPolicy`、Environment Rollout 和 Evaluator；Adapter 配置与权重哈希也会写入推理运行产物，防止误用 checkpoint。
 
 ## Calendar 工具环境
 

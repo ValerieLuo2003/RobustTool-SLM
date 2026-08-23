@@ -143,15 +143,16 @@ python scripts/run_sft.py \
 python scripts/generate_formal_data.py
 python scripts/build_formal_sft_data.py
 python scripts/run_sft.py --config configs/sft/qwen2_5_1_5b_lora_formal_v1.json
+python scripts/select_sft_checkpoint.py experiments/results/qwen2_5_1_5b_sft_formal_v1
 
 python scripts/run_qwen_baseline.py \
   --tasks data/processed/calendar_formal_v1/tasks/validation.jsonl \
-  --adapter-path experiments/results/qwen2_5_1_5b_sft_formal_v1/trainer_output/<checkpoint> \
+  --adapter-path <selected_checkpoint.json 中的 selected_checkpoint> \
   --run-name qwen2_5_1_5b_sft_formal_v1_validation
 python scripts/run_eval.py --run-name qwen2_5_1_5b_sft_formal_v1_validation
 ```
 
-Base 和 adapter 运行必须使用相同任务快照哈希。`scripts/compare_runs.py` 会拒绝比较不同快照；`scripts/select_failure_targets.py` 只接受 LoRA Validation 运行，并拒绝读取 Test 结果来选择 Hard-case 类别。
+`scripts/select_sft_checkpoint.py` 按最低 Validation loss 选择实际存在且包含完整 adapter 文件的 checkpoint，并输出配置与权重 SHA-256；不允许根据 Test 结果选 checkpoint。Base 和 adapter 运行必须使用相同任务快照哈希。`scripts/compare_runs.py` 会拒绝比较不同快照；`scripts/select_failure_targets.py` 只接受 LoRA Validation 运行，并拒绝读取 Test 结果来选择 Hard-case 类别。
 
 ## 5. 正式对比规则
 
