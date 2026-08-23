@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from robust_tool.training.checkpoints import select_best_checkpoint
-from scripts.run_sft import _collect_metrics
+from scripts.run_sft import _collect_metrics, _local_dataset_path
 
 
 class CheckpointSelectionTests(unittest.TestCase):
@@ -83,6 +83,18 @@ class CheckpointSelectionTests(unittest.TestCase):
             self.assertEqual(metrics["last_eval_loss"], 0.1)
             self.assertEqual(metrics["eval_history"], [records[1]])
             self.assertEqual(metrics["train_summary"], records[2])
+
+    def test_sft_preflight_understands_swift_local_sample_suffix(self) -> None:
+        self.assertEqual(
+            _local_dataset_path("data/processed/train.jsonl#64"),
+            Path("data/processed/train.jsonl"),
+        )
+        self.assertEqual(
+            _local_dataset_path("data/processed/train.jsonl"),
+            Path("data/processed/train.jsonl"),
+        )
+        with self.assertRaisesRegex(ValueError, "must be positive"):
+            _local_dataset_path("data/processed/train.jsonl#0")
 
 
 if __name__ == "__main__":

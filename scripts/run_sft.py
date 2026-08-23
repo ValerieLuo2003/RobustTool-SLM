@@ -37,6 +37,17 @@ def _load_json(path: Path) -> dict[str, Any]:
     return record
 
 
+def _local_dataset_path(dataset_spec: str) -> Path:
+    """Remove an optional ms-swift ``#sample_count`` suffix from a local path."""
+
+    path_text, separator, sample_text = dataset_spec.rpartition("#")
+    if separator and sample_text.isdigit():
+        if int(sample_text) <= 0:
+            raise ValueError(f"dataset sample count must be positive: {dataset_spec}")
+        return Path(path_text)
+    return Path(dataset_spec)
+
+
 def _latest_trainer_state(output_dir: Path) -> Path | None:
     candidates = list(output_dir.rglob("trainer_state.json"))
     return max(candidates, key=lambda path: path.stat().st_mtime) if candidates else None
@@ -145,7 +156,7 @@ def main() -> None:
         parser.error(f"output_dir must stay inside {experiment_root}: {output_dir}")
     for dataset_key in ("dataset", "val_dataset"):
         for dataset_path in swift_config.get(dataset_key, []):
-            resolved_dataset = (PROJECT_ROOT / str(dataset_path)).resolve()
+            resolved_dataset = (PROJECT_ROOT / _local_dataset_path(str(dataset_path))).resolve()
             if not resolved_dataset.exists():
                 parser.error(f"{dataset_key} file does not exist: {resolved_dataset}")
     run_dir = output_dir.parent
