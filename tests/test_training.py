@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from robust_tool.training.checkpoints import select_best_checkpoint
+from scripts.run_sft import _collect_metrics
 
 
 class CheckpointSelectionTests(unittest.TestCase):
@@ -56,6 +57,32 @@ class CheckpointSelectionTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(FileNotFoundError, "no complete LoRA checkpoint"):
                 select_best_checkpoint(run_dir)
+
+    def test_sft_metrics_use_final_logging_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            checkpoint = output / "v0" / "checkpoint-20"
+            checkpoint.mkdir(parents=True)
+            (checkpoint / "trainer_state.json").write_text(
+                json.dumps({"global_step": 20, "log_history": []}),
+                encoding="utf-8",
+            )
+            records = [
+                {"loss": 0.2, "global_step/max_steps": "20/20"},
+                {"eval_loss": 0.1, "global_step/max_steps": "20/20"},
+                {"train_runtime": 12.5, "train_loss": 0.3},
+            ]
+            (output / "v0" / "logging.jsonl").write_text(
+                "".join(json.dumps(record) + "\n" for record in records),
+                encoding="utf-8",
+            )
+
+            metrics = _collect_metrics(output, return_code=0)
+
+            self.assertTrue(metrics["completed"])
+            self.assertEqual(metrics["last_eval_loss"], 0.1)
+            self.assertEqual(metrics["eval_history"], [records[1]])
+            self.assertEqual(metrics["train_summary"], records[2])
 
 
 if __name__ == "__main__":

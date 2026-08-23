@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import json
 import shutil
 import platform
@@ -41,22 +42,69 @@ def _latest_trainer_state(output_dir: Path) -> Path | None:
     return max(candidates, key=lambda path: path.stat().st_mtime) if candidates else None
 
 
+def _latest_logging(output_dir: Path) -> Path | None:
+    candidates = list(output_dir.rglob("logging.jsonl"))
+    return max(candidates, key=lambda path: path.stat().st_mtime) if candidates else None
+
+
+def _logging_history(output_dir: Path) -> list[dict[str, Any]]:
+    path = _latest_logging(output_dir)
+    if path is None:
+        return []
+    history: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        if isinstance(record, dict):
+            history.append(record)
+    return history
+
+
+def _runtime_metadata() -> dict[str, Any]:
+    packages: dict[str, str | None] = {}
+    for distribution in ("torch", "transformers", "peft", "ms-swift", "modelscope"):
+        try:
+            packages[distribution] = importlib.metadata.version(distribution)
+        except importlib.metadata.PackageNotFoundError:
+            packages[distribution] = None
+    cuda: dict[str, Any] = {"available": False}
+    try:
+        import torch
+
+        cuda["build_version"] = torch.version.cuda
+        cuda["available"] = torch.cuda.is_available()
+        if cuda["available"]:
+            properties = torch.cuda.get_device_properties(0)
+            cuda.update(
+                {
+                    "device_name": torch.cuda.get_device_name(0),
+                    "device_count": torch.cuda.device_count(),
+                    "total_memory_gib": round(properties.total_memory / 1024**3, 2),
+                }
+            )
+    except (ImportError, RuntimeError) as exc:
+        cuda["inspection_error"] = str(exc)
+    return {"packages": packages, "cuda": cuda}
+
+
 def _collect_metrics(output_dir: Path, return_code: int) -> dict[str, Any]:
     metrics: dict[str, Any] = {"completed": return_code == 0, "return_code": return_code}
     state_path = _latest_trainer_state(output_dir)
     if state_path is None:
         return metrics
     state = _load_json(state_path)
-    history = state.get("log_history", [])
+    history = _logging_history(output_dir) or state.get("log_history", [])
     train_entries = [entry for entry in history if "loss" in entry]
     eval_entries = [entry for entry in history if "eval_loss" in entry]
-    summaries = [entry for entry in history if "train_loss" in entry]
+    summaries = [entry for entry in history if "train_runtime" in entry]
     metrics.update(
         {
             "global_step": state.get("global_step"),
             "trainer_state": str(state_path),
             "last_step_loss": train_entries[-1].get("loss") if train_entries else None,
             "last_eval_loss": eval_entries[-1].get("eval_loss") if eval_entries else None,
+            "eval_history": eval_entries,
             "train_summary": summaries[-1] if summaries else None,
         }
     )
@@ -112,6 +160,7 @@ def main() -> None:
         "git_commit": _git_commit(),
         "python": platform.python_version(),
         "platform": platform.platform(),
+        "runtime": _runtime_metadata(),
         "started_at_utc": datetime.now(timezone.utc).isoformat(),
     }
     (run_dir / "config.json").write_text(
