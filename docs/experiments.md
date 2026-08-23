@@ -178,7 +178,7 @@ python scripts/build_hard_cases.py \
   --failure-targets experiments/results/qwen2_5_1_5b_sft_formal_v1_validation_new3090/failure_targets.json
 ```
 
-第一条命令已经冻结 `wrong_argument_value`、`ignore_tool_result` 和 `missing_argument`。第二条命令只使用这三个类别作为生成策略，产出 3000 条全新 Train 轨迹并执行全量 Oracle 与跨 split 泄漏审计。它不会把 Validation 失败任务直接改写成训练样本，也不会根据 Test 选择方向。
+两条命令已经完成：冻结 `wrong_argument_value`、`ignore_tool_result` 和 `missing_argument`，并只使用这三个类别作为生成策略，产出 3000 条全新 Train 轨迹。全量 Oracle Task Success 为 100%，800 条两步任务也全部成功，新数据与原三份 split 的 ID 和规范化问题文本重叠均为 0。它没有把 Validation 失败任务直接改写成训练样本，也没有根据 Test 选择方向。
 
 ## 5. 正式对比规则
 

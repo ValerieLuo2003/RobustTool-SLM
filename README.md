@@ -45,7 +45,7 @@ Failure-aware SFT
 
 ## 当前完成到哪里
 
-目前已经完成 Week 1 基础框架、正式 SFT 数据、RTX 3090 LoRA 训练和同一套 Environment Evaluator 下的 Base vs SFT 对比。SFT Validation 的高频失败已经冻结，Failure-aware Train 数据生成器也已实现；下一步是生成并审计 3000 条针对性轨迹，再训练 Failure-SFT。
+目前已经完成 Week 1 基础框架、正式 SFT 数据、RTX 3090 LoRA 训练和同一套 Environment Evaluator 下的 Base vs SFT 对比。SFT Validation 的高频失败已经冻结，3000 条 Failure-aware Train 轨迹也已生成并通过全量 Oracle 与泄漏审计；下一步是 Failure-SFT smoke 和正式训练。
 
 | 模块 | 当前状态 | 说明 |
 |---|---|---|
@@ -59,8 +59,8 @@ Failure-aware SFT
 | 单元测试 | 已完成 | 环境、工具、数据、轨迹、指标和评测均有覆盖 |
 | Qwen Base Inference | 已完成正式 Validation | 已固定 Qwen2.5-1.5B-Instruct，并在 RTX 3090 完成 500 条环境推理与自动评测 |
 | SFT | 已完成正式训练与评测 | 6000 条 Train、1 epoch、LoRA；Validation Task Success 从 66% 提升到 92% |
-| Failure-aware 数据 | 生成器已完成 | 从 SFT Validation 选择 Top 3 failure，冻结 3000 条全新 Train 配额并强制做跨 split 泄漏审计 |
-| Failure-SFT | 待训练 | 先完成 3000 条数据的远程生成与 Oracle 审计，再训练和评测 |
+| Failure-aware 数据 | 已完成 | 从 SFT Validation 选择 Top 3 failure，3000 条全新 Train 已通过 Oracle 和跨 split 泄漏审计 |
+| Failure-SFT | 配置已冻结 | 原始 6000 + 针对性 3000，从同一 Base 重训；先运行 20-step smoke |
 | 鲁棒性 Benchmark | 未开始 | Week 3 |
 | GRPO | 未开始 | Week 4 |
 
@@ -367,7 +367,7 @@ robust-tool-slm/
 
 ### Week 3：失败驱动优化
 
-已从 SFT Validation 冻结 Top 3 failure，并实现 3000 条全新 Train Hard Cases 的确定性生成、Oracle 执行和泄漏审计。下一步生成正式产物、训练 Failure-SFT，再加入扰动 Benchmark 与随机增强对照。
+已从 SFT Validation 冻结 Top 3 failure，3000 条全新 Train Hard Cases 已完成确定性生成、Oracle 执行和泄漏审计。下一步训练 Failure-SFT，再加入扰动 Benchmark 与随机增强对照。
 
 ### Week 4：执行反馈 GRPO
 

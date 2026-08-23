@@ -49,3 +49,15 @@ python scripts/run_sft.py --config configs/sft/qwen2_5_1_5b_lora_formal_v1.json
 ```
 
 该配置不包含 `max_steps`，由 6000 条数据、1 epoch 和梯度累积 8 决定 750 个 optimizer step。正式运行已经完成，最低 Validation loss 对应 checkpoint-750；如需改超参数或训练 Failure-SFT，应复制为新版本，不得覆盖这份已产生正式结果的 v1 配置。
+
+Failure-aware 阶段提供两份新配置：
+
+- `qwen2_5_1_5b_lora_failure_aware_smoke.json`：原始 Train 与 Hard-case 各抽样 64 条，Validation 抽样 32 条，只运行 20 step；
+- `qwen2_5_1_5b_lora_failure_aware_v1.json`：从同一冻结 Base 开始，使用原始 6000 + Failure-aware 3000，Validation 仍是原来的 500 条。
+
+Failure-SFT 不直接续训原 SFT adapter。这样后续的 Failure-aware 3000 与 Random 3000 可以都从同一 Base、在相同总数据量和训练超参数下重训，避免 optimizer 历史或二阶段学习率成为混杂因素。
+
+```bash
+python scripts/run_sft.py --config configs/sft/qwen2_5_1_5b_lora_failure_aware_smoke.json
+python scripts/run_sft.py --config configs/sft/qwen2_5_1_5b_lora_failure_aware_v1.json
+```

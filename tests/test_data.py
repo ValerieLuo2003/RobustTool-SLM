@@ -286,6 +286,64 @@ class DatasetTests(unittest.TestCase):
             },
         )
 
+    def test_failure_sft_config_is_equal_scale_augmentation_from_frozen_base(self) -> None:
+        root = Path(__file__).parents[1]
+        formal = json.loads(
+            (root / "configs" / "sft" / "qwen2_5_1_5b_lora_formal_v1.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        failure = json.loads(
+            (root / "configs" / "sft" / "qwen2_5_1_5b_lora_failure_aware_v1.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            failure["dataset"],
+            [
+                "data/processed/calendar_formal_v1/swift/train.jsonl",
+                "data/processed/calendar_failure_aware_v1/swift/train.jsonl",
+            ],
+        )
+        self.assertEqual(failure["val_dataset"], formal["val_dataset"])
+        for key in (
+            "model",
+            "model_revision",
+            "tuner_type",
+            "target_modules",
+            "lora_rank",
+            "lora_alpha",
+            "lora_dropout",
+            "learning_rate",
+            "num_train_epochs",
+            "gradient_accumulation_steps",
+            "max_length",
+            "seed",
+            "data_seed",
+        ):
+            self.assertEqual(failure[key], formal[key], key)
+        serialized = json.dumps(failure)
+        self.assertNotIn("adapter_path", serialized)
+        self.assertNotIn("resume_from_checkpoint", serialized)
+        self.assertNotIn("test.jsonl", serialized)
+
+    def test_failure_sft_smoke_uses_bounded_samples_of_both_train_sources(self) -> None:
+        path = (
+            Path(__file__).parents[1]
+            / "configs"
+            / "sft"
+            / "qwen2_5_1_5b_lora_failure_aware_smoke.json"
+        )
+        config = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(config["max_steps"], 20)
+        self.assertEqual(config["lora_rank"], 16)
+        self.assertEqual(config["gradient_accumulation_steps"], 8)
+        self.assertEqual(len(config["dataset"]), 2)
+        self.assertTrue(all(path.endswith("#64") for path in config["dataset"]))
+        self.assertEqual(config["val_dataset"], [
+            "data/processed/calendar_formal_v1/swift/validation.jsonl#32"
+        ])
+
 
 if __name__ == "__main__":
     unittest.main()
