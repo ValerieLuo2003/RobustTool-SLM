@@ -375,12 +375,16 @@ Trajectory → 全新环境重放 → Robustness Gap
 
 `scripts/compare_robustness.py` 使用 `source_task_id` 做逐任务配对。每种扰动的 Clean 分母不是整个 Validation，而是该 setting 实际选择的 50 个同源 Clean 样本，防止由于任务难度组成不同而制造虚假 Gap。
 
+`scripts/compare_robustness_runs.py` 再把多个模型的单模型配对产物合并。它校验 Robust Task SHA、pair 数和扰动集合一致，按冻结顺序生成总体指标、分 setting 成功率/Gap 与 Failure Distribution，不依赖手工抄写表格。
+
+Recovery eligible 由任务协议定义，而不是由模型是否碰巧触发错误定义。全部 `tool_failure` 任务进入 Recovery 分母；错误调用、提前回答和未触发 timeout 都算恢复失败。这样 Base、SFT 和 Failure-SFT 的 Recovery Success 使用同一批 50 条任务。
+
 ## 17. 当前有意延后的内容
 
 当前阶段仍有意延后以下内容：
 
 - Random Augmentation 对照；
-- Base / SFT / Failure-SFT 的 Robust Validation 模型运行；
+- 面向 `missing_tool`、`tool_failure` 和 `partial_tool_response` 的 Failure-SFT v2；
 - 冻结 Clean Test 对应的最终 Robust Test；
 - Dense Reward 和 GRPO。
 

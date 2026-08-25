@@ -1,6 +1,6 @@
 # 最终报告模板
 
-> 当前仓库已完成基础框架、正式 SFT、Failure-aware 数据生成、Failure-SFT 训练、Base / SFT / Failure-SFT 的统一 Validation 对比，以及 Robustness Validation 数据与配对评测框架。本文件同时保存已经有机器可读产物支持的阶段结论和后续待完成部分；Clean Test、模型 Robustness 数字、Random Augmentation 消融与 GRPO 结果仍不得提前填写。
+> 当前仓库已完成基础框架、正式 SFT、Failure-aware 数据生成、Failure-SFT 训练、Base / SFT / Failure-SFT 的统一 Clean Validation，以及 500 条 Robustness Validation 正式对比。本文件同时保存已有机器可读产物支持的阶段结论和后续待完成部分；Clean Test、Random Augmentation 消融与 GRPO 结果仍不得提前填写。
 
 ## 1. 项目摘要
 
@@ -61,14 +61,21 @@
 
 | Setting | Base | SFT | Failure-SFT | GRPO |
 |---|---:|---:|---:|---:|
-| Clean |  |  |  |  |
-| Distractor |  |  |  |  |
-| Missing Tool |  |  |  |  |
-| Tool Error |  |  |  |  |
-| Noisy Response |  |  |  |  |
-| Ambiguous Query |  |  |  |  |
+| Paired Clean | 69.20% | 94.80% | 96.20% |  |
+| Robust Overall | 40.20% | 65.40% | 67.20% |  |
+| Similar Tool Distractor | 78.00% | 88.00% | 92.00% |  |
+| Tool Order Shuffle | 62.00% | 88.00% | 94.00% |  |
+| Tool Description Rewrite | 54.00% | 92.00% | 96.00% |  |
+| Tool Name Similarity | 72.00% | 96.00% | 98.00% |  |
+| Missing Tool | 0.00% | 0.00% | 0.00% |  |
+| Tool Failure | 6.00% | 0.00% | 0.00% |  |
+| Noisy Tool Response | 68.00% | 100.00% | 100.00% |  |
+| Partial Tool Response | 0.00% | 0.00% | 0.00% |  |
+| Ambiguous User Query | 0.00% | 100.00% | 100.00% |  |
+| Irrelevant Tool Added | 62.00% | 90.00% | 92.00% |  |
+| Robustness Gap | 29.00% | 29.40% | 29.00% |  |
 
-表格必须由实验 JSON 自动生成，不得手工填写无法追溯的数字。
+表格由 `compare_robustness_runs.py` 读取正式实验 JSON 生成。Paired Clean 是按 500 条 Robust Task 的 source 分布加权后的 Clean 成功率，不等同于整份 500 条 Clean Validation 的总体分数。Robust 任务快照 SHA-256 为 `a62c76019ad935f58d915e096cad38f02fca8701cb702be1a61fe2a7f7c9f18e`。
 
 ## 6. Failure Analysis
 
@@ -88,6 +95,11 @@
 - Failure-SFT 将三个目标标签分别降到 23、1 和 0，失败任务进一步降到 31；
 - Failure-SFT 相比 SFT 修复 11 条、回归 2 条，Task Success 净增 9 条；
 - 当前最明确的副作用是 7 个 `final_answer_failure`：`list_events` 找到待删除事件后没有继续执行 `delete_event`，其中 2 条是真实回归。
+- Robust Validation 上，SFT 将 Task Success 从 201/500 提升到 327/500，Failure-SFT 进一步提升到 336/500；
+- SFT 把 `ambiguous_user_query` 从 0/50 提升到 50/50，并显著改善 Schema、参数语义和可执行率；
+- `missing_tool` 和 `partial_tool_response` 在三个模型上均为 0/50，`tool_failure` 则是 Base 3/50、两个 SFT 模型 0/50；
+- Base 的 3 条 Tool Failure 成功均执行了真实 retry，说明当前 SFT 数据产生了需要重点验证的恢复能力负迁移；
+- Failure-SFT 相比 SFT 的总体 Robustness Gap 只从 29.4 降至 29.0 个百分点，不能声称第一版 hard data 已解决鲁棒性问题。
 
 ## 7. Ablation
 

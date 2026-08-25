@@ -184,7 +184,7 @@ Schema 正确不等于可执行成功。例如，合法的时间参数仍可能�
 
 ### `recovery_success_rate`
 
-只在轨迹中实际遇到 retriable 错误的任务上统计最终成功率。Robustness v1 的 `tool_failure` 会在第一次调用时注入确定性 timeout；模型只有重试成功、达到 Goal 并给出最终回答，才计为恢复成功。
+分母优先由 Benchmark Task 定义。Robustness v1 的全部 `tool_failure` 任务都会进入分母，即使模型先选错工具、没有真正触发 timeout，也计为恢复失败；这保证不同模型使用相同分母。对于没有 Robustness metadata 的其他任务，如果轨迹实际遇到 retriable 错误，也会进入分母。模型只有重试成功、达到 Goal 并给出最终回答，才计为恢复成功。
 
 ### `invalid_tool_call_rate`
 
@@ -251,6 +251,12 @@ python scripts/compare_robustness.py \
   --clean-run experiments/results/<clean_run> \
   --robust-run experiments/results/<robust_run> \
   --output-prefix experiments/results/<model>_robustness_validation
+
+python scripts/compare_robustness_runs.py \
+  --run Base=experiments/results/<base_robust_run> \
+  --run SFT=experiments/results/<sft_robust_run> \
+  --run Failure-SFT=experiments/results/<failure_sft_robust_run> \
+  --output-prefix experiments/results/base_vs_sft_vs_failure_sft_robustness_validation
 ```
 
 每条 Robust Task 都通过 `source_task_id` 与 Clean Task 配对。对某个 setting：
@@ -261,6 +267,8 @@ Robustness Gap
 - Perturbed Task Success
 ```
 
-脚本还输出每个 setting 的分层指标、Failure Distribution，以及 `Clean fail → Perturbed success` / `Clean success → Perturbed fail` 的配对迁移。Clean 与 Robust 运行的模型 revision、adapter 权重哈希、解码配置和最大步数必须一致，否则拒绝比较。
+单模型配对脚本还输出每个 setting 的分层指标、Failure Distribution，以及 `Clean fail → Perturbed success` / `Clean success → Perturbed fail` 的配对迁移。Clean 与 Robust 运行的模型 revision、adapter 权重哈希、解码配置和最大步数必须一致，否则拒绝比较。
+
+跨模型脚本只接受相同 Robust Task SHA、相同 pair 数和完全相同的扰动集合；它读取各运行的 `metrics.json`、`failure_stats.json` 和 `robustness_gap.json`，生成一份 JSON、tidy CSV 与中文 Markdown，防止手工抄表时混用任务或指标版本。
 
 这些限制应在解释结果时明确说明，不能把 Oracle 100% 当作模型能力结论；Oracle 只证明数据目标、工具执行和 Evaluator 自洽。

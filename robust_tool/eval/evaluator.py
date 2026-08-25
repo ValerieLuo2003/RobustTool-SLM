@@ -97,10 +97,15 @@ def evaluate_task(
 
     executable_calls = sum(result.ok for result in replay.execution_results)
     failures = classify_failures(task, trajectory, replay, registry)
-    recovery_eligible = any(
+    observed_retriable_error = any(
         not result.ok and result.error is not None and result.error.retriable
         for result in replay.execution_results
     )
+    robustness = task.metadata.get("robustness")
+    benchmark_recovery_task = (
+        isinstance(robustness, Mapping) and robustness.get("kind") == "tool_failure"
+    )
+    recovery_eligible = benchmark_recovery_task or observed_retriable_error
     recovery_success = recovery_eligible and replay.task_success
     diagnostics = {
         "expected_action": task.expected_action,

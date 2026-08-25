@@ -45,7 +45,7 @@ Failure-aware SFT
 
 ## 当前完成到哪里
 
-目前已经完成 Week 1 基础框架、正式 SFT、Failure-aware 数据闭环、Base / SFT / Failure-SFT Validation 对比，以及 10 类 Robustness Validation 的数据与配对评测框架。Failure-SFT 使用普通 SFT 的高频失败生成 3000 条针对性 Train 轨迹，在 RTX 3090 上从同一个 Base Model 重新训练；500 条 Validation 的 Task Success 从 SFT 的 92.0% 进一步提升到 93.8%。Clean Test 仍保持冻结，下一步是运行三种模型的 Robust Validation，并实现 Random Augmentation 对照实验。
+目前已经完成 Week 1 基础框架、正式 SFT、Failure-aware 数据闭环、Base / SFT / Failure-SFT Clean Validation 对比，以及三种模型在 10 类、共 500 条 Robustness Validation 上的正式评测。普通 SFT 把鲁棒任务成功率从 Base 的 40.2% 提升到 65.4%，Failure-SFT 进一步达到 67.2%；但三者的总体 Robustness Gap 都约为 29 个百分点，且 SFT 与 Failure-SFT 在工具缺失、可重试故障和部分响应上仍然没有学会恢复。Clean Test 继续保持冻结，下一步先完成恢复型 Failure-SFT v2 与等规模 Random Augmentation 对照，再进入 GRPO。
 
 | 模块 | 当前状态 | 说明 |
 |---|---|---|
@@ -56,12 +56,12 @@ Failure-aware SFT
 | 正式 Calendar 数据 | 已完成 | 6000/500/1000，覆盖八类任务和三种多步状态依赖 |
 | Oracle / Random Baseline | 已完成 | 不依赖模型，用来验证环境与评测器 |
 | 第一版 Evaluator | 已完成 | 支持分层指标、环境重放和失败分类 |
-| 单元测试 | 已完成 | 57 项测试通过，覆盖环境、工具、数据、轨迹、指标、评测、鲁棒性与训练前检查 |
+| 单元测试 | 已完成 | 60 项测试通过，覆盖环境、工具、数据、轨迹、指标、评测、鲁棒性、跨模型汇总与训练前检查 |
 | Qwen Base Inference | 已完成正式 Validation | 已固定 Qwen2.5-1.5B-Instruct，并在 RTX 3090 完成 500 条环境推理与自动评测 |
 | SFT | 已完成正式训练与评测 | 6000 条 Train、1 epoch、LoRA；Validation Task Success 从 66% 提升到 92% |
 | Failure-aware 数据 | 已完成 | 从 SFT Validation 选择 Top 3 failure，3000 条全新 Train 已通过 Oracle 和跨 split 泄漏审计 |
 | Failure-SFT | 已完成正式训练与评测 | 原始 6000 + 针对性 3000，从同一 Base 重训；Validation Task Success 达到 93.8% |
-| 鲁棒性 Benchmark | 数据与评测框架已完成 | 10 类 × 50 条 Robust Validation 已通过 Oracle；待 Base / SFT / Failure-SFT 模型实测 |
+| 鲁棒性 Benchmark | 已完成正式 Validation | 10 类 × 50 条、Oracle 500/500；Base / SFT / Failure-SFT 实测为 40.2% / 65.4% / 67.2% |
 | GRPO | 未开始 | Week 4 |
 
 ## 当前系统是怎样工作的
@@ -277,6 +277,12 @@ python scripts/compare_robustness.py \
   --clean-run experiments/results/<clean_run> \
   --robust-run experiments/results/<robust_run> \
   --output-prefix experiments/results/<model>_robustness_validation
+
+python scripts/compare_robustness_runs.py \
+  --run Base=experiments/results/<base_robust_run> \
+  --run SFT=experiments/results/<sft_robust_run> \
+  --run Failure-SFT=experiments/results/<failure_sft_robust_run> \
+  --output-prefix experiments/results/base_vs_sft_vs_failure_sft_robustness_validation
 ```
 
 脚本按照每条 Robust Task 的 `source_task_id` 找到对应 Clean 结果，并自动输出 JSON、CSV 和 Markdown。每个 setting 的核心指标为：
@@ -285,7 +291,23 @@ python scripts/compare_robustness.py \
 Robustness Gap = 同源 Clean Task Success - Perturbed Task Success
 ```
 
-当前只完成了数据与评测框架，尚未填写模型 Robustness 数字。
+三轮正式运行使用同一任务快照 `a62c76019ad935f58d915e096cad38f02fca8701cb702be1a61fe2a7f7c9f18e`，每种扰动固定 50 条。下表由 `compare_robustness_runs.py` 读取正式 JSON 产物生成；单元格格式为“扰动成功率（相对同源 Clean 的 Gap）”：
+
+| 设置 | Base | SFT | Failure-SFT |
+|---|---:|---:|---:|
+| Overall | 40.20%（29.00%） | 65.40%（29.40%） | 67.20%（29.00%） |
+| Similar Tool Distractor | 78.00%（-4.00%） | 88.00%（4.00%） | 92.00%（2.00%） |
+| Tool Order Shuffle | 62.00%（-2.00%） | 88.00%（2.00%） | 94.00%（-4.00%） |
+| Tool Description Rewrite | 54.00%（0.00%） | 92.00%（-2.00%） | 96.00%（0.00%） |
+| Tool Name Similarity | 72.00%（4.00%） | 96.00%（0.00%） | 98.00%（-2.00%） |
+| Missing Tool | 0.00%（78.00%） | 0.00%（98.00%） | 0.00%（100.00%） |
+| Tool Failure | 6.00%（68.00%） | 0.00%（96.00%） | 0.00%（96.00%） |
+| Noisy Tool Response | 68.00%（0.00%） | 100.00%（0.00%） | 100.00%（0.00%） |
+| Partial Tool Response | 0.00%（66.00%） | 0.00%（100.00%） | 0.00%（100.00%） |
+| Ambiguous User Query | 0.00%（80.00%） | 100.00%（-4.00%） | 100.00%（-4.00%） |
+| Irrelevant Tool Added | 62.00%（0.00%） | 90.00%（0.00%） | 92.00%（2.00%） |
+
+SFT 的主要价值是把 Schema Accuracy 从 77.45% 提升到 97.69%、Executable Call Rate 从 60.59% 提升到 81.25%，并把歧义澄清从 0/50 提升到 50/50。Failure-SFT 进一步改善 Tool Selection、参数语义与无效调用，总成功率净增 9 条，但总体 Gap 只下降 0.4 个百分点。更重要的是，Base 在可重试 timeout 上有 3/50 条真实二次调用成功，而两个 SFT 模型都是 0/50；这说明当前 SFT 轨迹可能强化了“一次调用后立即回答”的策略。下一轮数据将针对 `missing_tool`、`tool_failure` 和 `partial_tool_response` 重新生成全新 Train 轨迹，并保留等规模 Random Augmentation 对照。
 
 ## Calendar 工具环境
 
@@ -443,7 +465,7 @@ robust-tool-slm/
 
 ### Week 3：失败驱动优化
 
-已完成 Top 3 failure 冻结、3000 条全新 Train Hard Cases、Failure-SFT 训练、统一 Validation 评测，以及 500 条 / 10 类 Robust Validation 的生成与配对评测框架。下一步运行三种模型的 Robust Validation，再做随机增强对照，验证当前 1.8 个百分点的 Task Success 增益是否来自失败感知数据，而不是单纯增加训练样本。
+已完成 Top 3 clean failure 冻结、3000 条全新 Train Hard Cases、Failure-SFT 训练、统一 Clean Validation，以及 Base / SFT / Failure-SFT 的 500 条 Robust Validation。下一步冻结 `missing_tool`、`tool_failure` 和 `partial_tool_response` 三类恢复目标，生成 Failure-SFT v2 数据，同时完成等规模 Random Augmentation 对照；Clean Test 继续封存。
 
 ### Week 4：执行反馈 GRPO
 

@@ -228,9 +228,49 @@ python scripts/compare_robustness.py \
   --clean-run experiments/results/<model>_clean_validation \
   --robust-run experiments/results/<model>_robustness_validation \
   --output-prefix experiments/results/<model>_robustness_gap_validation
+
+python scripts/compare_robustness_runs.py \
+  --run Base=experiments/results/<base_robust_run> \
+  --run SFT=experiments/results/<sft_robust_run> \
+  --run Failure-SFT=experiments/results/<failure_sft_robust_run> \
+  --output-prefix experiments/results/base_vs_sft_vs_failure_sft_robustness_validation
 ```
 
-当前 500 条 Robust Validation 已通过 Oracle 全量重放，10 类扰动各 50 条，Train 使用量为 0。模型结果尚未运行，因此本文件不提前填写 Robustness Gap。
+500 条 Robust Validation 已通过 Oracle 全量重放，10 类扰动各 50 条，Train 使用量为 0。三种模型都在 RTX 3090 上完成正式运行；任务快照 SHA-256 为 `a62c76019ad935f58d915e096cad38f02fca8701cb702be1a61fe2a7f7c9f18e`。模型 rollout 分别耗时约 46.6、53.2 和 55.9 分钟。耗时只用于复现成本估算，不作为模型效率结论。
+
+总体分层指标如下，全部来自统一汇总脚本读取的正式 JSON：
+
+| 指标 | Base | SFT | Failure-SFT |
+|---|---:|---:|---:|
+| Call Decision Accuracy | 76.60% | 89.80% | 90.20% |
+| Tool Selection Accuracy | 72.94% | 75.29% | 78.04% |
+| Argument Schema Accuracy | 77.45% | 97.69% | 99.33% |
+| Argument Semantic Accuracy | 63.51% | 76.33% | 79.00% |
+| Executable Call Rate | 60.59% | 81.25% | 83.59% |
+| Task Success Rate | 40.20% | 65.40% | 67.20% |
+| Multi-turn Task Success Rate | 6.62% | 14.71% | 18.38% |
+| Recovery Success Rate | 6.00% | 0.00% | 0.00% |
+| Invalid Tool Call Rate | 22.55% | 2.31% | 0.67% |
+
+Recovery 的分母由 benchmark task 定义：全部 50 条 `tool_failure` 都进入分母，即使模型先选错工具、没有触发 timeout，也算恢复失败。Base 的 3 条成功轨迹均为真实的 `call → timeout → retry → success → answer`；SFT 和 Failure-SFT 都没有成功重试。
+
+分设置结果如下，单元格格式为“扰动成功率（相对同源 Clean 的 Gap）”：
+
+| 设置 | Base | SFT | Failure-SFT |
+|---|---:|---:|---:|
+| Overall | 40.20%（29.00%） | 65.40%（29.40%） | 67.20%（29.00%） |
+| Similar Tool Distractor | 78.00%（-4.00%） | 88.00%（4.00%） | 92.00%（2.00%） |
+| Tool Order Shuffle | 62.00%（-2.00%） | 88.00%（2.00%） | 94.00%（-4.00%） |
+| Tool Description Rewrite | 54.00%（0.00%） | 92.00%（-2.00%） | 96.00%（0.00%） |
+| Tool Name Similarity | 72.00%（4.00%） | 96.00%（0.00%） | 98.00%（-2.00%） |
+| Missing Tool | 0.00%（78.00%） | 0.00%（98.00%） | 0.00%（100.00%） |
+| Tool Failure | 6.00%（68.00%） | 0.00%（96.00%） | 0.00%（96.00%） |
+| Noisy Tool Response | 68.00%（0.00%） | 100.00%（0.00%） | 100.00%（0.00%） |
+| Partial Tool Response | 0.00%（66.00%） | 0.00%（100.00%） | 0.00%（100.00%） |
+| Ambiguous User Query | 0.00%（80.00%） | 100.00%（-4.00%） | 100.00%（-4.00%） |
+| Irrelevant Tool Added | 62.00%（0.00%） | 90.00%（0.00%） | 92.00%（2.00%） |
+
+从 SFT 到 Failure-SFT，成功任务增加 9 条，Argument Schema / Semantic、Tool Selection、Executable 和 Invalid Call 均继续改善；但 Robustness Gap 只从 29.4 降到 29.0 个百分点。Failure-SFT 的 `unnecessary_tool_call` 从 43 增至 49，`final_answer_failure` 从 98 增至 104，也必须作为副作用保留。下一轮冻结的鲁棒 failure targets 是 `missing_tool`、`tool_failure` 和 `partial_tool_response`；它们将使用全新 Train 模板生成，不复制 Validation 实例，并与等规模 Random Augmentation 做对照。
 
 ## 5. 正式对比规则
 

@@ -19,6 +19,7 @@ from robust_tool.data.perturb import (
 from robust_tool.env.calendar import CalendarEnvironment
 from robust_tool.eval.evaluator import evaluate_dataset, evaluate_task
 from robust_tool.eval.robustness import compute_robustness_report
+from robust_tool.eval.robustness_comparison import compare_robustness_runs
 from robust_tool.rollout.runner import OraclePolicy, run_policy
 from robust_tool.rollout.trajectory import Trajectory, TrajectoryMessage
 from robust_tool.tools.registry import calendar_registry, registry_for_task_record
@@ -153,6 +154,23 @@ class RobustnessTests(unittest.TestCase):
         self.assertFalse(result.replay.final_answer_semantic_match)
         self.assertIn("final_answer_failure", result.failures.failures)
 
+    def test_tool_failure_recovery_denominator_is_task_defined(self) -> None:
+        task = next(
+            task
+            for task in self._tasks()
+            if task.metadata["robustness"]["kind"] == PerturbationKind.TOOL_FAILURE.value
+        )
+        no_call = Trajectory(
+            task.task_id,
+            messages=[
+                TrajectoryMessage("user", task.user_query),
+                TrajectoryMessage("assistant", action="respond", content="I cannot help."),
+            ],
+        )
+        result = evaluate_task(task, no_call)
+        self.assertTrue(result.diagnostics["recovery_eligible"])
+        self.assertFalse(result.diagnostics["recovery_success"])
+
     def test_checked_in_config_freezes_500_validation_perturbations(self) -> None:
         path = (
             Path(__file__).parents[1]
@@ -181,6 +199,96 @@ class RobustnessTests(unittest.TestCase):
         for setting in report["settings"].values():
             self.assertEqual(setting["clean_task_success"]["value"], 1.0)
             self.assertEqual(setting["perturbed_task_success"]["value"], 1.0)
+
+    def test_cross_model_comparison_rejects_different_task_snapshots(self) -> None:
+        import json
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_paths = []
+            for index, task_hash in enumerate(("same", "different")):
+                run_dir = root / f"run-{index}"
+                run_dir.mkdir()
+                (run_dir / "config.json").write_text(
+                    json.dumps({"task_snapshot_sha256": task_hash, "task_count": 10}),
+                    encoding="utf-8",
+                )
+                (run_dir / "metrics.json").write_text(
+                    json.dumps({"metrics": {"task_success_rate": {"value": 0.5}}}),
+                    encoding="utf-8",
+                )
+                (run_dir / "failure_stats.json").write_text(
+                    json.dumps({"failure_counts": {}}), encoding="utf-8"
+                )
+                setting = {
+                    "pair_count": 1,
+                    "clean_task_success": {"value": 1.0},
+                    "perturbed_task_success": {"value": 0.5},
+                    "robustness_gap": 0.5,
+                }
+                (run_dir / "robustness_gap.json").write_text(
+                    json.dumps(
+                        {
+                            "pair_count": 10,
+                            "overall": {**setting, "pair_count": 10},
+                            "settings": {kind: setting for kind in PERTURBATION_KINDS},
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                run_paths.append(run_dir)
+            with self.assertRaisesRegex(ValueError, "different Robust task snapshots"):
+                compare_robustness_runs(
+                    [("Base", run_paths[0]), ("SFT", run_paths[1])]
+                )
+
+    def test_cross_model_comparison_normalizes_serialized_setting_order(self) -> None:
+        import json
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_paths = []
+            for index in range(2):
+                run_dir = root / f"run-{index}"
+                run_dir.mkdir()
+                (run_dir / "config.json").write_text(
+                    json.dumps({"task_snapshot_sha256": "same", "task_count": 10}),
+                    encoding="utf-8",
+                )
+                (run_dir / "metrics.json").write_text(
+                    json.dumps({"metrics": {"task_success_rate": {"value": 0.5}}}),
+                    encoding="utf-8",
+                )
+                (run_dir / "failure_stats.json").write_text(
+                    json.dumps({"failure_counts": {}}), encoding="utf-8"
+                )
+                setting = {
+                    "pair_count": 1,
+                    "clean_task_success": {"value": 1.0},
+                    "perturbed_task_success": {"value": 0.5},
+                    "robustness_gap": 0.5,
+                }
+                reversed_settings = {
+                    kind: setting for kind in reversed(PERTURBATION_KINDS)
+                }
+                (run_dir / "robustness_gap.json").write_text(
+                    json.dumps(
+                        {
+                            "pair_count": 10,
+                            "overall": {**setting, "pair_count": 10},
+                            "settings": reversed_settings,
+                        },
+                        sort_keys=True,
+                    ),
+                    encoding="utf-8",
+                )
+                run_paths.append(run_dir)
+            comparison = compare_robustness_runs(
+                [("Base", run_paths[0]), ("SFT", run_paths[1])]
+            )
+            self.assertEqual(comparison["perturbation_order"], list(PERTURBATION_KINDS))
 
 
 if __name__ == "__main__":
