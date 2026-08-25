@@ -270,7 +270,21 @@ Recovery 的分母由 benchmark task 定义：全部 50 条 `tool_failure` 都�
 | Ambiguous User Query | 0.00%（80.00%） | 100.00%（-4.00%） | 100.00%（-4.00%） |
 | Irrelevant Tool Added | 62.00%（0.00%） | 90.00%（0.00%） | 92.00%（2.00%） |
 
-从 SFT 到 Failure-SFT，成功任务增加 9 条，Argument Schema / Semantic、Tool Selection、Executable 和 Invalid Call 均继续改善；但 Robustness Gap 只从 29.4 降到 29.0 个百分点。Failure-SFT 的 `unnecessary_tool_call` 从 43 增至 49，`final_answer_failure` 从 98 增至 104，也必须作为副作用保留。下一轮冻结的鲁棒 failure targets 是 `missing_tool`、`tool_failure` 和 `partial_tool_response`；它们将使用全新 Train 模板生成，不复制 Validation 实例，并与等规模 Random Augmentation 做对照。
+从 SFT 到 Failure-SFT，成功任务增加 9 条，Argument Schema / Semantic、Tool Selection、Executable 和 Invalid Call 均继续改善；但 Robustness Gap 只从 29.4 降到 29.0 个百分点。Failure-SFT 的 `unnecessary_tool_call` 从 43 增至 49，`final_answer_failure` 从 98 增至 104，也必须作为副作用保留。下一轮冻结的鲁棒 failure targets 是 `missing_tool`、`tool_failure` 和 `partial_tool_response`。
+
+Recovery Failure-SFT v2 数据命令为：
+
+```bash
+python scripts/build_recovery_cases.py \
+  --config configs/data/calendar_recovery_failure_aware_v2_smoke.json \
+  --output-dir data/processed/calendar_recovery_failure_aware_v2_smoke
+
+python scripts/build_recovery_cases.py
+```
+
+正式生成已完成但尚未训练。配置固定新增 3000 条 Train-only 轨迹，三类各 1000；使用 3000 个互不重复的原始 Train 源任务，Validation/Test 内容不进入生成。Oracle Task Success 为 3000/3000，1000 条 timeout 的 Recovery 为 1000/1000，生成任务与原三份 split 的 ID 和规范化问题重叠均为 0。
+
+下一步实验必须同时构建新增 3000 条的 Random Augmentation 对照。计划中的两边都使用 `原始 SFT 6000 + 第一版 Failure-aware 3000 + 第二阶段新增 3000`，从相同 Base Model 重训，并保持 epoch、batch、学习率、LoRA、seed 和 checkpoint 选择协议一致。这样才能判断提升来自恢复类别的定向分配，而不是总样本数从 9000 增至 12000。
 
 ## 5. 正式对比规则
 

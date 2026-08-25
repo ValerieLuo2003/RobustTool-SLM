@@ -383,8 +383,8 @@ Recovery eligible 由任务协议定义，而不是由模型是否碰巧触发�
 
 当前阶段仍有意延后以下内容：
 
-- Random Augmentation 对照；
-- 面向 `missing_tool`、`tool_failure` 和 `partial_tool_response` 的 Failure-SFT v2；
+- 与 Recovery v2 同为新增 3000 条的 Random Augmentation 对照；
+- 从相同 Base 重训 Recovery-SFT v2 与 Random 对照，并使用完全一致的优化配置；
 - 冻结 Clean Test 对应的最终 Robust Test；
 - Dense Reward 和 GRPO。
 

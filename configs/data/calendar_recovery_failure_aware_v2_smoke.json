@@ -1,0 +1,11 @@
+{
+  "dataset_name": "calendar-recovery-failure-aware-v2-smoke",
+  "generator_version": "calendar-recovery-failure-aware-v2",
+  "seed": 20260826,
+  "source_robust_validation_sha256": "a62c76019ad935f58d915e096cad38f02fca8701cb702be1a61fe2a7f7c9f18e",
+  "target_counts": {
+    "missing_tool": 4,
+    "tool_failure": 4,
+    "partial_tool_response": 4
+  }
+}

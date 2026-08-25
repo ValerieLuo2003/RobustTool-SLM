@@ -318,9 +318,37 @@ manifest.json               配置、来源、输出哈希与 Oracle 审计
 
 当前任务文件 SHA-256 为 `a62c76019ad935f58d915e096cad38f02fca8701cb702be1a61fe2a7f7c9f18e`；源 Validation SHA-256 为 `ad2202da79bdbae87a486d40ebf3ab44ee3223481c1021d29e129213ec261dee`。生成代码发生语义变化后必须重新生成并以新 manifest 为准。
 
-## 11. 后续扩展计划
+## 11. Recovery Failure-aware v2 训练数据
 
-当前正式规模已经达到 SFT 6000 条 Train 加 Failure-aware 3000 条 Train。后续扩展重点不是继续无目的增加数量，而是：
+正式鲁棒性验证显示 `missing_tool`、`tool_failure` 和 `partial_tool_response` 是 SFT 后仍未解决的三类失败。生成命令为：
+
+```bash
+python scripts/build_recovery_cases.py \
+  --config configs/data/calendar_recovery_failure_aware_v2_smoke.json \
+  --output-dir data/processed/calendar_recovery_failure_aware_v2_smoke
+
+python scripts/build_recovery_cases.py
+```
+
+正式配置固定生成 3000 条 Train-only 轨迹，三类各 1000。生成器从原始 6000 条 Train 中无放回选择 3000 个源任务，并为训练任务创建新 ID、新问题表达和独立 metadata；Validation/Test 只参与 ID 与规范化问题碰撞审计，不参与选择或变换。
+
+三类轨迹协议为：
+
+- `missing_tool`：移除必需工具，Oracle 直接说明具体工具不可用，不生成工具调用；
+- `tool_failure`：第一次调用返回 `retriable=true` 的 timeout，Oracle 使用完全相同的参数重试一次；
+- `partial_tool_response`：第一次只读结果移除关键字段，Oracle 不猜测并重复查询一次。
+
+当前正式审计结果：Task Success 3000/3000，Multi-turn 2000/2000，Recovery 1000/1000；3000 个源 Train ID 无复用，生成任务与原 Train/Validation/Test 的 Task ID 和规范化问题文本重叠均为 0。输出 SHA-256 为：
+
+- Task：`9e2d8ec5823ea189953b9f0a562d0a1028135aea3e93144e687fb72138e775f7`；
+- Trajectory：`caca1c92120f7e8436bd2f50c0d66d4038510da416c7757f575ae3daf3acdfdb`；
+- ms-swift Train：`1328078cc38fc3c604166cb0242be16570bde39fe87eb28765f027ea97466e1a`。
+
+这些文件属于生成产物，不提交 Git；仓库提交生成器、冻结配置和测试。正式训练必须等 Random Augmentation 对照完成后，使用同样新增 3000 条、相同 Base 数据和相同优化配置。
+
+## 12. 后续扩展计划
+
+当前正式规模已经达到 SFT 6000 条 Train、第一版 Failure-aware 3000 条 Train，并准备好第二版 Recovery 3000 条 Train。后续扩展重点不是继续无目的增加数量，而是：
 
 - 保持 500 条 Validation 和 1000 条冻结 Clean Test；
 - 在方法冻结后从 Clean Test 单独构建 `robust_test`；

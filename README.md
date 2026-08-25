@@ -45,7 +45,7 @@ Failure-aware SFT
 
 ## 当前完成到哪里
 
-目前已经完成 Week 1 基础框架、正式 SFT、Failure-aware 数据闭环、Base / SFT / Failure-SFT Clean Validation 对比，以及三种模型在 10 类、共 500 条 Robustness Validation 上的正式评测。普通 SFT 把鲁棒任务成功率从 Base 的 40.2% 提升到 65.4%，Failure-SFT 进一步达到 67.2%；但三者的总体 Robustness Gap 都约为 29 个百分点，且 SFT 与 Failure-SFT 在工具缺失、可重试故障和部分响应上仍然没有学会恢复。Clean Test 继续保持冻结，下一步先完成恢复型 Failure-SFT v2 与等规模 Random Augmentation 对照，再进入 GRPO。
+目前已经完成 Week 1 基础框架、正式 SFT、Failure-aware 数据闭环、Base / SFT / Failure-SFT Clean Validation 对比，以及三种模型在 10 类、共 500 条 Robustness Validation 上的正式评测。普通 SFT 把鲁棒任务成功率从 Base 的 40.2% 提升到 65.4%，Failure-SFT 进一步达到 67.2%；但三者的总体 Robustness Gap 都约为 29 个百分点，且 SFT 与 Failure-SFT 在工具缺失、可重试故障和部分响应上仍然没有学会恢复。基于这些真实失败，仓库已进一步生成 3000 条 Train-only Recovery v2 轨迹并通过全量 Oracle 审计。Clean Test 继续冻结，下一步是等规模 Random Augmentation 对照和训练配置冻结，而不是立即启动训练。
 
 | 模块 | 当前状态 | 说明 |
 |---|---|---|
@@ -56,12 +56,13 @@ Failure-aware SFT
 | 正式 Calendar 数据 | 已完成 | 6000/500/1000，覆盖八类任务和三种多步状态依赖 |
 | Oracle / Random Baseline | 已完成 | 不依赖模型，用来验证环境与评测器 |
 | 第一版 Evaluator | 已完成 | 支持分层指标、环境重放和失败分类 |
-| 单元测试 | 已完成 | 60 项测试通过，覆盖环境、工具、数据、轨迹、指标、评测、鲁棒性、跨模型汇总与训练前检查 |
+| 单元测试 | 已完成 | 63 项测试通过，覆盖环境、工具、数据、轨迹、指标、评测、鲁棒性、恢复数据、跨模型汇总与训练前检查 |
 | Qwen Base Inference | 已完成正式 Validation | 已固定 Qwen2.5-1.5B-Instruct，并在 RTX 3090 完成 500 条环境推理与自动评测 |
 | SFT | 已完成正式训练与评测 | 6000 条 Train、1 epoch、LoRA；Validation Task Success 从 66% 提升到 92% |
 | Failure-aware 数据 | 已完成 | 从 SFT Validation 选择 Top 3 failure，3000 条全新 Train 已通过 Oracle 和跨 split 泄漏审计 |
 | Failure-SFT | 已完成正式训练与评测 | 原始 6000 + 针对性 3000，从同一 Base 重训；Validation Task Success 达到 93.8% |
 | 鲁棒性 Benchmark | 已完成正式 Validation | 10 类 × 50 条、Oracle 500/500；Base / SFT / Failure-SFT 实测为 40.2% / 65.4% / 67.2% |
+| Recovery v2 数据 | 已完成 | 3000 条 Train-only：Missing Tool / Timeout Retry / Partial Response 各 1000，Oracle 3000/3000 |
 | GRPO | 未开始 | Week 4 |
 
 ## 当前系统是怎样工作的
@@ -307,7 +308,19 @@ Robustness Gap = 同源 Clean Task Success - Perturbed Task Success
 | Ambiguous User Query | 0.00%（80.00%） | 100.00%（-4.00%） | 100.00%（-4.00%） |
 | Irrelevant Tool Added | 62.00%（0.00%） | 90.00%（0.00%） | 92.00%（2.00%） |
 
-SFT 的主要价值是把 Schema Accuracy 从 77.45% 提升到 97.69%、Executable Call Rate 从 60.59% 提升到 81.25%，并把歧义澄清从 0/50 提升到 50/50。Failure-SFT 进一步改善 Tool Selection、参数语义与无效调用，总成功率净增 9 条，但总体 Gap 只下降 0.4 个百分点。更重要的是，Base 在可重试 timeout 上有 3/50 条真实二次调用成功，而两个 SFT 模型都是 0/50；这说明当前 SFT 轨迹可能强化了“一次调用后立即回答”的策略。下一轮数据将针对 `missing_tool`、`tool_failure` 和 `partial_tool_response` 重新生成全新 Train 轨迹，并保留等规模 Random Augmentation 对照。
+SFT 的主要价值是把 Schema Accuracy 从 77.45% 提升到 97.69%、Executable Call Rate 从 60.59% 提升到 81.25%，并把歧义澄清从 0/50 提升到 50/50。Failure-SFT 进一步改善 Tool Selection、参数语义与无效调用，总成功率净增 9 条，但总体 Gap 只下降 0.4 个百分点。更重要的是，Base 在可重试 timeout 上有 3/50 条真实二次调用成功，而两个 SFT 模型都是 0/50；这说明当前 SFT 轨迹可能强化了“一次调用后立即回答”的策略。
+
+### 8. 构建 Recovery Failure-SFT v2 数据
+
+```bash
+python scripts/build_recovery_cases.py \
+  --config configs/data/calendar_recovery_failure_aware_v2_smoke.json \
+  --output-dir data/processed/calendar_recovery_failure_aware_v2_smoke
+
+python scripts/build_recovery_cases.py
+```
+
+正式配置只从冻结的 6000 条 Train 中无放回选择源任务，不读取 Validation/Test 内容来构造样本。当前输出 3000 条全新轨迹：`missing_tool`、`tool_failure`、`partial_tool_response` 各 1000；使用 3000 个不同源 Train 任务，任务 ID 和规范化问题与原三份 split 重叠均为 0。Oracle Task Success 为 3000/3000，1000 条 timeout 的 Recovery Success 为 1000/1000；Task、Trajectory 和 ms-swift 文件 SHA-256 分别为 `9e2d8ec5…`、`caca1c92…` 和 `1328078c…`。这些数据还没有进入训练；必须先完成等规模 Random Augmentation 对照，并冻结两边完全一致的 Base 数据、epoch 与优化器配置。
 
 ## Calendar 工具环境
 
@@ -465,7 +478,7 @@ robust-tool-slm/
 
 ### Week 3：失败驱动优化
 
-已完成 Top 3 clean failure 冻结、3000 条全新 Train Hard Cases、Failure-SFT 训练、统一 Clean Validation，以及 Base / SFT / Failure-SFT 的 500 条 Robust Validation。下一步冻结 `missing_tool`、`tool_failure` 和 `partial_tool_response` 三类恢复目标，生成 Failure-SFT v2 数据，同时完成等规模 Random Augmentation 对照；Clean Test 继续封存。
+已完成 Top 3 clean failure 冻结、第一版 3000 条 Hard Cases、Failure-SFT 训练、统一 Clean Validation、三模型 500 条 Robust Validation，以及第二版 3000 条 Recovery Train 轨迹。下一步实现等规模 Random Augmentation，冻结 `原始 6000 + v1 3000 + 新增 3000` 的公平训练配置，再运行 smoke；Clean Test 继续封存。
 
 ### Week 4：执行反馈 GRPO
 

@@ -22,6 +22,12 @@ from robust_tool.data.hard_cases import (
     generate_failure_aware_tasks,
     load_failure_aware_config,
 )
+from robust_tool.data.recovery_cases import (
+    RecoveryDatasetConfig,
+    audit_recovery_tasks,
+    generate_recovery_tasks,
+    load_recovery_config,
+)
 from robust_tool.data.generator import generate_calendar_toy_tasks, write_calendar_toy_dataset
 from robust_tool.eval.evaluator import evaluate_dataset
 from robust_tool.data.schemas import load_tasks
@@ -72,6 +78,20 @@ class DatasetTests(unittest.TestCase):
             },
         )
 
+    @staticmethod
+    def _small_recovery_config(seed: int = 789) -> RecoveryDatasetConfig:
+        return RecoveryDatasetConfig(
+            dataset_name="calendar-recovery-test",
+            generator_version="calendar-recovery-failure-aware-v2",
+            seed=seed,
+            source_robust_validation_sha256="b" * 64,
+            target_counts={
+                "missing_tool": 2,
+                "tool_failure": 2,
+                "partial_tool_response": 2,
+            },
+        )
+
     def test_generator_has_fixed_size_unique_ids_and_strict_splits(self) -> None:
         tasks = generate_calendar_toy_tasks(seed=123)
         self.assertEqual(len(tasks), 25)
@@ -93,6 +113,61 @@ class DatasetTests(unittest.TestCase):
         left = [task.to_dict() for task in generate_calendar_toy_tasks(seed=99)]
         right = [task.to_dict() for task in generate_calendar_toy_tasks(seed=99)]
         self.assertEqual(left, right)
+
+    def test_recovery_generator_is_deterministic_train_only_and_disjoint(self) -> None:
+        splits = generate_calendar_formal_splits(self._small_formal_config())
+        config = self._small_recovery_config()
+        left = generate_recovery_tasks(config, splits["train"])
+        right = generate_recovery_tasks(config, splits["train"])
+        self.assertEqual([task.to_dict() for task in left], [task.to_dict() for task in right])
+        audit = audit_recovery_tasks(left, config, splits)
+        self.assertEqual(audit["count"], 6)
+        self.assertEqual(audit["unique_source_train_tasks"], 6)
+        self.assertEqual(audit["source_overlap"], {"task_ids": 0, "normalized_user_queries": 0})
+        self.assertFalse(audit["validation_or_test_content_used_for_generation"])
+        self.assertTrue(all(task.metadata["split"] == "train" for task in left))
+
+    def test_recovery_oracle_executes_retry_and_missing_tool_families(self) -> None:
+        splits = generate_calendar_formal_splits(self._small_formal_config())
+        tasks = generate_recovery_tasks(self._small_recovery_config(), splits["train"])
+        report = evaluate_dataset(tasks, run_policy(tasks, OraclePolicy(), max_steps=4))
+        self.assertEqual(report.metrics["task_success_rate"].value, 1.0)
+        self.assertEqual(report.metrics["recovery_success_rate"].value, 1.0)
+        self.assertFalse(report.failure_counts)
+        by_target = {
+            target: [
+                task
+                for task in tasks
+                if task.metadata["target_robustness"] == target
+            ]
+            for target in ("missing_tool", "tool_failure", "partial_tool_response")
+        }
+        self.assertTrue(
+            all(task.expected_action == "respond" for task in by_target["missing_tool"])
+        )
+        self.assertTrue(
+            all(len(task.reference_calls) == 2 for task in by_target["tool_failure"])
+        )
+        self.assertTrue(
+            all(
+                len(task.reference_calls) == 2
+                for task in by_target["partial_tool_response"]
+            )
+        )
+
+    def test_checked_in_recovery_configs_freeze_smoke_and_formal_scale(self) -> None:
+        root = Path(__file__).parents[1] / "configs" / "data"
+        smoke = load_recovery_config(
+            root / "calendar_recovery_failure_aware_v2_smoke.json"
+        )
+        formal = load_recovery_config(root / "calendar_recovery_failure_aware_v2.json")
+        self.assertEqual(smoke.size, 12)
+        self.assertEqual(formal.size, 3000)
+        self.assertEqual(set(formal.target_counts), set(smoke.target_counts))
+        self.assertEqual(
+            formal.source_robust_validation_sha256,
+            "a62c76019ad935f58d915e096cad38f02fca8701cb702be1a61fe2a7f7c9f18e",
+        )
 
     def test_dated_queries_make_reference_year_explicit(self) -> None:
         tasks = generate_calendar_toy_tasks()
