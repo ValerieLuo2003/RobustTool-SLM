@@ -154,16 +154,18 @@ python scripts/run_eval.py --run-name qwen2_5_1_5b_sft_formal_v1_validation
 
 `scripts/select_sft_checkpoint.py` 按最低 Validation loss 选择实际存在且包含完整 adapter 文件的 checkpoint，并输出配置与权重 SHA-256；不允许根据 Test 结果选 checkpoint。Base 和 adapter 运行必须使用相同任务快照哈希。`scripts/compare_runs.py` 会拒绝比较不同快照；`scripts/select_failure_targets.py` 只接受 LoRA Validation 运行，并拒绝读取 Test 结果来选择 Hard-case 类别。
 
-本次已完成的正式运行使用 Qwen2.5-1.5B-Instruct、6000 条 Train、1 epoch、LoRA rank 16。最低 Validation loss 对应 checkpoint-750。在相同 500 条任务快照上：
+本次已完成的普通 SFT 正式运行使用 Qwen2.5-1.5B-Instruct、6000 条 Train、1 epoch、LoRA rank 16。Failure-SFT 使用原始 6000 条加 3000 条 Failure-aware Train，并从同一个 Base Model 重新训练，而不是继续训练普通 SFT adapter。两者都按最低 Validation loss 选择 checkpoint-750。在相同 500 条任务快照上：
 
-| 指标 | Base | SFT |
-|---|---:|---:|
-| Tool Selection Accuracy | 91.35% | 94.94% |
-| Argument Semantic Accuracy | 83.49% | 94.52% |
-| Executable Call Rate | 80.16% | 96.69% |
-| Task Success Rate | 66.00% | 92.00% |
-| Multi-turn Task Success Rate | 18.92% | 56.76% |
-| Invalid Tool Call Rate | 18.40% | 2.65% |
+| 指标 | Base | SFT | Failure-SFT |
+|---|---:|---:|---:|
+| Call Decision Accuracy | 92.40% | 98.20% | 100.00% |
+| Tool Selection Accuracy | 91.35% | 94.94% | 98.31% |
+| Argument Semantic Accuracy | 83.49% | 94.52% | 97.57% |
+| Executable Call Rate | 80.16% | 96.69% | 99.79% |
+| Task Success Rate | 66.00% | 92.00% | 93.80% |
+| Multi-turn Task Success Rate | 18.92% | 56.76% | 62.16% |
+| Invalid Tool Call Rate | 18.40% | 2.65% | 0.00% |
+| Unnecessary Tool Call Rate | 6.80% | 0.00% | 0.00% |
 
 这些数字由远程实验目录中的 `metrics.json` 和比较脚本生成，只用于 Validation 方法选择，不代替最终 Test 结果。
 
@@ -179,6 +181,36 @@ python scripts/build_hard_cases.py \
 ```
 
 两条命令已经完成：冻结 `wrong_argument_value`、`ignore_tool_result` 和 `missing_argument`，并只使用这三个类别作为生成策略，产出 3000 条全新 Train 轨迹。全量 Oracle Task Success 为 100%，800 条两步任务也全部成功，新数据与原三份 split 的 ID 和规范化问题文本重叠均为 0。它没有把 Validation 失败任务直接改写成训练样本，也没有根据 Test 选择方向。
+
+Failure-SFT 的正式配置为：
+
+```bash
+python scripts/run_sft.py \
+  --config configs/sft/qwen2_5_1_5b_lora_failure_aware_v1.json
+```
+
+本次训练共 1125 step、1 epoch，运行约 1 小时 30 分钟，峰值显存约 7.4 GiB。三个候选 checkpoint 的 Validation loss 分别为：
+
+| Step | Validation loss |
+|---:|---:|
+| 375 | 0.03876981 |
+| 750 | **0.03750928** |
+| 1125 | 0.04001660 |
+
+最终选择 `checkpoint-750`。其 `adapter_model.safetensors` 大小为 73,911,112 bytes，SHA-256 为 `2862ddc3ceb8d7e5502a05967660d8673e60aab66a9c22036f59643c290788de`。统一评测的任务快照 SHA-256 为 `ad2202da79bdbae87a486d40ebf3ab44ee3223481c1021d29e129213ec261dee`。
+
+Failure-SFT 相比普通 SFT 的目标 failure 变化如下：
+
+| Failure | SFT | Failure-SFT | 变化 |
+|---|---:|---:|---:|
+| `wrong_argument_value` | 28 | 23 | -5 |
+| `ignore_tool_result` | 15 | 1 | -14 |
+| `missing_argument` | 11 | 0 | -11 |
+| 失败任务总数 | 40 | 31 | -9 |
+
+逐任务配对检查显示，Failure-SFT 修复了 11 条普通 SFT 失败任务，同时让 2 条原本成功的任务失败，净增 9 条成功。新增的 7 个 `final_answer_failure` 都发生在 `list_events → delete_event` 任务：模型已经找到目标事件，却提前返回查询结果。这里有 5 条在普通 SFT 下也失败，只是原标签为 `wrong_call_decision`；真正由成功转失败的是 2 条。因此应同时报告 failure 标签分布和逐任务成功转移，不能把“新增 7 个标签”误写成“回归 7 条任务”。
+
+Failure-SFT 推理耗时约 4064.7 秒，普通 SFT 为 1911.9 秒；但前者只多 1.5% 的生成步数和 2.6% 的输出 token。当前证据不足以把延迟差异归因于训练方法，正式效率比较需要在相同机器状态下重复运行并记录 GPU 时钟、功耗和并发负载。
 
 ## 5. 正式对比规则
 

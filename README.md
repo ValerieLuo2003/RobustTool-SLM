@@ -45,7 +45,7 @@ Failure-aware SFT
 
 ## 当前完成到哪里
 
-目前已经完成 Week 1 基础框架、正式 SFT 数据、RTX 3090 LoRA 训练和同一套 Environment Evaluator 下的 Base vs SFT 对比。SFT Validation 的高频失败已经冻结，3000 条 Failure-aware Train 轨迹也已生成并通过全量 Oracle 与泄漏审计；下一步是 Failure-SFT smoke 和正式训练。
+目前已经完成 Week 1 基础框架、正式 SFT、Failure-aware 数据闭环，以及同一套 Environment Evaluator 下的 Base / SFT / Failure-SFT Validation 对比。Failure-SFT 使用普通 SFT 的高频失败生成 3000 条针对性 Train 轨迹，在 RTX 3090 上从同一个 Base Model 重新训练；500 条 Validation 的 Task Success 从 SFT 的 92.0% 进一步提升到 93.8%。Clean Test 仍保持冻结，下一步是构建 Robustness Benchmark 和 Random Augmentation 对照实验。
 
 | 模块 | 当前状态 | 说明 |
 |---|---|---|
@@ -56,11 +56,11 @@ Failure-aware SFT
 | 正式 Calendar 数据 | 已完成 | 6000/500/1000，覆盖八类任务和三种多步状态依赖 |
 | Oracle / Random Baseline | 已完成 | 不依赖模型，用来验证环境与评测器 |
 | 第一版 Evaluator | 已完成 | 支持分层指标、环境重放和失败分类 |
-| 单元测试 | 已完成 | 环境、工具、数据、轨迹、指标和评测均有覆盖 |
+| 单元测试 | 已完成 | 50 项测试通过，覆盖环境、工具、数据、轨迹、指标、评测与训练前检查 |
 | Qwen Base Inference | 已完成正式 Validation | 已固定 Qwen2.5-1.5B-Instruct，并在 RTX 3090 完成 500 条环境推理与自动评测 |
 | SFT | 已完成正式训练与评测 | 6000 条 Train、1 epoch、LoRA；Validation Task Success 从 66% 提升到 92% |
 | Failure-aware 数据 | 已完成 | 从 SFT Validation 选择 Top 3 failure，3000 条全新 Train 已通过 Oracle 和跨 split 泄漏审计 |
-| Failure-SFT | 配置已冻结 | 原始 6000 + 针对性 3000，从同一 Base 重训；先运行 20-step smoke |
+| Failure-SFT | 已完成正式训练与评测 | 原始 6000 + 针对性 3000，从同一 Base 重训；Validation Task Success 达到 93.8% |
 | 鲁棒性 Benchmark | 未开始 | Week 3 |
 | GRPO | 未开始 | Week 4 |
 
@@ -192,12 +192,13 @@ python scripts/run_eval.py --run-name qwen2_5_1_5b_sft_formal_v1_validation
 
 `select_sft_checkpoint.py` 只读取训练时的 Validation loss，在实际存在且完整的 LoRA checkpoint 中选择最低值，并将所有候选、最终路径和权重哈希写入 `selected_checkpoint.json`。它不会读取 Test。Base 与 LoRA adapter 复用同一个 `QwenTransformersPolicy`、Environment Rollout 和 Evaluator；Adapter 配置与权重哈希也会写入推理运行产物，防止误用 checkpoint。
 
-本次正式 Validation 结果如下。这里仍不是最终 Test 结论，但可以用于选择 Hard-case 方向：
+本次正式 Validation 结果如下。三次运行使用相同的 500 条任务快照、模型 revision、最大轮数、解码协议和 Environment Evaluator。这里仍不是最终 Test 结论，但可以用于选择方法和分析失败：
 
 | 模型 | Tool Selection | Argument Semantic | Executable | Task Success | Multi-turn Success | Invalid Call |
 |---|---:|---:|---:|---:|---:|---:|
 | Base | 91.35% | 83.49% | 80.16% | 66.00% | 18.92% | 18.40% |
 | SFT | 94.94% | 94.52% | 96.69% | 92.00% | 56.76% | 2.65% |
+| Failure-SFT | 98.31% | 97.57% | 99.79% | 93.80% | 62.16% | 0.00% |
 
 SFT 的 40 个失败任务中，Top 3 标签是 `wrong_argument_value`（28）、`ignore_tool_result`（15）和 `missing_argument`（11）。选择过程只读取 LoRA Validation 运行：
 
@@ -211,6 +212,40 @@ python scripts/build_hard_cases.py \
 ```
 
 `build_hard_cases.py` 根据失败类别生成 3000 条全新 Train 轨迹：1200 条精确参数值、1000 条工具结果依赖、800 条必填参数/澄清。它不会复制 Validation 失败样本；Test 只参与哈希和 ID/问题文本碰撞审计，不进入生成逻辑，也不会产生 Validation/Test 训练输出。每条轨迹都必须通过真实 Calendar Environment 的 Oracle 重放后才会写入 ms-swift 数据。
+
+### 6. 运行 Failure-SFT 并复用同一评测器
+
+Failure-SFT 不是从普通 SFT adapter 继续训练，而是从冻结的 Base Model 重新训练“原始 6000 条 + 针对性 3000 条”。这样可以把差异归因于训练数据，并为后续“随机增加 3000 条 vs 失败感知增加 3000 条”消融保留公平对照。
+
+```bash
+python scripts/run_sft.py \
+  --config configs/sft/qwen2_5_1_5b_lora_failure_aware_smoke.json
+
+python scripts/run_sft.py \
+  --config configs/sft/qwen2_5_1_5b_lora_failure_aware_v1.json
+
+python scripts/select_sft_checkpoint.py \
+  experiments/results/qwen2_5_1_5b_failure_sft_formal_v1
+
+python scripts/run_qwen_baseline.py \
+  --tasks data/processed/calendar_formal_v1/tasks/validation.jsonl \
+  --adapter-path <selected_checkpoint.json 中的 selected_checkpoint> \
+  --run-name qwen2_5_1_5b_failure_sft_formal_v1_validation
+
+python scripts/run_eval.py \
+  --run-name qwen2_5_1_5b_failure_sft_formal_v1_validation
+```
+
+正式训练共 1125 step、1 epoch，最低 Validation loss 为 `0.03750928`，对应 `checkpoint-750`。在同一 500 条 Validation 上，Failure-SFT 相比普通 SFT 修复 11 条任务、回归 2 条，成功任务净增 9 条：
+
+- `missing_argument`：11 → 0；
+- `ignore_tool_result`：15 → 1；
+- `wrong_argument_value`：28 → 23；
+- 失败任务总数：40 → 31；
+- Task Success：460/500 → 469/500；
+- Multi-turn Success：21/37 → 23/37。
+
+仍需注意一个明确副作用：Failure-SFT 出现 7 个 `final_answer_failure`，共同模式是在 `list_events` 找到待删除事件后提前回答，没有继续调用 `delete_event`。其中 5 条在普通 SFT 中本来就会失败，只是失败类型从错误澄清转成提前停止；另外 2 条是真实回归。这个模式将进入 Robustness Benchmark 与后续数据消融，而不会继续无目的扩充数据。
 
 ## Calendar 工具环境
 
@@ -367,7 +402,7 @@ robust-tool-slm/
 
 ### Week 3：失败驱动优化
 
-已从 SFT Validation 冻结 Top 3 failure，3000 条全新 Train Hard Cases 已完成确定性生成、Oracle 执行和泄漏审计。下一步训练 Failure-SFT，再加入扰动 Benchmark 与随机增强对照。
+已完成 Top 3 failure 冻结、3000 条全新 Train Hard Cases、Failure-SFT 训练和统一 Validation 评测。下一步加入扰动 Benchmark 与随机增强对照，验证当前 1.8 个百分点的 Task Success 增益是否来自失败感知数据，而不是单纯增加训练样本。
 
 ### Week 4：执行反馈 GRPO
 

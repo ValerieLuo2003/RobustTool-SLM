@@ -1,6 +1,6 @@
 # 最终报告模板
 
-> 当前仓库已完成基础框架、正式 SFT 和 Base vs SFT Validation 对比，并进入 Failure-aware 数据阶段。本文件仍是最终报告结构；只有已经由机器可读实验产物支持的数字才可填写。
+> 当前仓库已完成基础框架、正式 SFT、Failure-aware 数据生成、Failure-SFT 训练，以及 Base / SFT / Failure-SFT 的统一 Validation 对比。本文件同时保存已经有机器可读产物支持的阶段结论和后续待完成部分；Clean Test、Robustness、Random Augmentation 消融与 GRPO 结果仍不得提前填写。
 
 ## 1. 项目摘要
 
@@ -50,10 +50,12 @@
 
 | Model | Tool Acc | Arg Acc | Exec Rate | Task Success | Recovery | Invalid Call |
 |---|---:|---:|---:|---:|---:|---:|
-| Base |  |  |  |  |  |  |
-| SFT |  |  |  |  |  |  |
-| Failure-SFT |  |  |  |  |  |  |
+| Base | 91.35% | 83.49% | 80.16% | 66.00% | — | 18.40% |
+| SFT | 94.94% | 94.52% | 96.69% | 92.00% | — | 2.65% |
+| Failure-SFT | 98.31% | 97.57% | 99.79% | 93.80% | — | 0.00% |
 | GRPO |  |  |  |  |  |  |
+
+上表是 500 条 Validation 的阶段结果，不是 Clean Test 最终结果。当前 Validation 没有 Recovery eligible 样本，因此 Recovery 显示为 `—`，不能填写为 0%。三次运行使用相同任务快照，SHA-256 为 `ad2202da79bdbae87a486d40ebf3ab44ee3223481c1021d29e129213ec261dee`。
 
 ### Robustness
 
@@ -77,6 +79,15 @@
 - Failure-SFT 针对目标类别的改善及副作用；
 - GRPO 后 Recovery、Repeated Call、Ignore Tool Result 等变化；
 - 每个重要类别的真实轨迹案例。
+
+当前已经支持的阶段结论：
+
+- Base 的 170 个失败任务中，高频标签包括 `wrong_argument_value`（97）、`ignore_tool_result`（91）和 `final_answer_failure`（40）；
+- 普通 SFT 将失败任务降到 40，Task Success 从 330/500 提升到 460/500；
+- SFT 后的 Top 3 是 `wrong_argument_value`（28）、`ignore_tool_result`（15）和 `missing_argument`（11）；
+- Failure-SFT 将三个目标标签分别降到 23、1 和 0，失败任务进一步降到 31；
+- Failure-SFT 相比 SFT 修复 11 条、回归 2 条，Task Success 净增 9 条；
+- 当前最明确的副作用是 7 个 `final_answer_failure`：`list_events` 找到待删除事件后没有继续执行 `delete_event`，其中 2 条是真实回归。
 
 ## 7. Ablation
 
