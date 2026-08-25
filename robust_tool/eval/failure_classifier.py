@@ -62,7 +62,7 @@ def classify_failures(
     if task.expected_action == "clarify" and replay.predicted_action != "clarify":
         add("clarification_failure", {"predicted": replay.predicted_action})
 
-    seen: set[str] = set()
+    seen: dict[str, int] = {}
     for index, call in enumerate(calls):
         canonical = json.dumps(
             {"name": call.name, "arguments": dict(call.arguments)},
@@ -70,8 +70,14 @@ def classify_failures(
             sort_keys=True,
         )
         if canonical in seen:
-            add("repeated_tool_call", {"call_index": index, "name": call.name})
-        seen.add(canonical)
+            expected_retry = (
+                index < len(task.reference_calls)
+                and task.reference_calls[index].name == call.name
+                and dict(task.reference_calls[index].arguments) == dict(call.arguments)
+            )
+            if not expected_retry:
+                add("repeated_tool_call", {"call_index": index, "name": call.name})
+        seen[canonical] = index
         if not call.json_valid:
             add("invalid_json", {"call_index": index, "error": call.parse_error})
         if not registry.has(call.name):
@@ -111,6 +117,8 @@ def classify_failures(
         )
     if not replay.final_answer_present:
         add("final_answer_failure", {"reason": "missing_or_empty"})
+    elif not replay.final_answer_semantic_match:
+        add("final_answer_failure", {"reason": "response_semantic_mismatch"})
     elif not replay.task_success and not evidence:
         add("final_answer_failure", {"reason": "goal_not_completed"})
 

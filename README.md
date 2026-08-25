@@ -45,7 +45,7 @@ Failure-aware SFT
 
 ## 当前完成到哪里
 
-目前已经完成 Week 1 基础框架、正式 SFT、Failure-aware 数据闭环，以及同一套 Environment Evaluator 下的 Base / SFT / Failure-SFT Validation 对比。Failure-SFT 使用普通 SFT 的高频失败生成 3000 条针对性 Train 轨迹，在 RTX 3090 上从同一个 Base Model 重新训练；500 条 Validation 的 Task Success 从 SFT 的 92.0% 进一步提升到 93.8%。Clean Test 仍保持冻结，下一步是构建 Robustness Benchmark 和 Random Augmentation 对照实验。
+目前已经完成 Week 1 基础框架、正式 SFT、Failure-aware 数据闭环、Base / SFT / Failure-SFT Validation 对比，以及 10 类 Robustness Validation 的数据与配对评测框架。Failure-SFT 使用普通 SFT 的高频失败生成 3000 条针对性 Train 轨迹，在 RTX 3090 上从同一个 Base Model 重新训练；500 条 Validation 的 Task Success 从 SFT 的 92.0% 进一步提升到 93.8%。Clean Test 仍保持冻结，下一步是运行三种模型的 Robust Validation，并实现 Random Augmentation 对照实验。
 
 | 模块 | 当前状态 | 说明 |
 |---|---|---|
@@ -56,12 +56,12 @@ Failure-aware SFT
 | 正式 Calendar 数据 | 已完成 | 6000/500/1000，覆盖八类任务和三种多步状态依赖 |
 | Oracle / Random Baseline | 已完成 | 不依赖模型，用来验证环境与评测器 |
 | 第一版 Evaluator | 已完成 | 支持分层指标、环境重放和失败分类 |
-| 单元测试 | 已完成 | 50 项测试通过，覆盖环境、工具、数据、轨迹、指标、评测与训练前检查 |
+| 单元测试 | 已完成 | 57 项测试通过，覆盖环境、工具、数据、轨迹、指标、评测、鲁棒性与训练前检查 |
 | Qwen Base Inference | 已完成正式 Validation | 已固定 Qwen2.5-1.5B-Instruct，并在 RTX 3090 完成 500 条环境推理与自动评测 |
 | SFT | 已完成正式训练与评测 | 6000 条 Train、1 epoch、LoRA；Validation Task Success 从 66% 提升到 92% |
 | Failure-aware 数据 | 已完成 | 从 SFT Validation 选择 Top 3 failure，3000 条全新 Train 已通过 Oracle 和跨 split 泄漏审计 |
 | Failure-SFT | 已完成正式训练与评测 | 原始 6000 + 针对性 3000，从同一 Base 重训；Validation Task Success 达到 93.8% |
-| 鲁棒性 Benchmark | 未开始 | Week 3 |
+| 鲁棒性 Benchmark | 数据与评测框架已完成 | 10 类 × 50 条 Robust Validation 已通过 Oracle；待 Base / SFT / Failure-SFT 模型实测 |
 | GRPO | 未开始 | Week 4 |
 
 ## 当前系统是怎样工作的
@@ -247,6 +247,46 @@ python scripts/run_eval.py \
 
 仍需注意一个明确副作用：Failure-SFT 出现 7 个 `final_answer_failure`，共同模式是在 `list_events` 找到待删除事件后提前回答，没有继续调用 `delete_event`。其中 5 条在普通 SFT 中本来就会失败，只是失败类型从错误澄清转成提前停止；另外 2 条是真实回归。这个模式将进入 Robustness Benchmark 与后续数据消融，而不会继续无目的扩充数据。
 
+### 7. 生成 Robustness Validation 并计算 Robustness Gap
+
+```bash
+python scripts/generate_robustness_data.py
+```
+
+该命令从冻结的 500 条 Validation 中确定性选择同源任务，生成 500 条 Robust Validation；不会读取 Train，也不会写入任何 SFT 数据。当前 10 类扰动各 50 条：
+
+| 扰动 | 检查内容 |
+|---|---|
+| `similar_tool_distractor` | 增加功能描述相近但目标不同的工具 |
+| `tool_order_shuffle` | 改变工具 Schema 顺序 |
+| `tool_description_rewrite` | 保持语义，改写工具说明 |
+| `tool_name_similarity` | 增加名称与正确工具高度相似的 preview 工具 |
+| `missing_tool` | 移除完成任务必需的工具，要求明确说明不可用 |
+| `tool_failure` | 首次调用确定性 timeout，允许重试恢复 |
+| `noisy_tool_response` | 在正确结果中加入无关 metadata |
+| `partial_tool_response` | 首次返回缺少关键字段，要求识别并重试 |
+| `ambiguous_user_query` | 删除必要信息，正确行为变为澄清 |
+| `irrelevant_tool_added` | 增加完全无关的日历时区工具 |
+
+所有故障和响应变换都由 Task metadata 配置，并由同一个 Calendar Environment 执行；模型、Oracle 和 Evaluator 看到的是同一行为。当前全量 Oracle Task Success 为 500/500，50 个可恢复 timeout 的 Recovery Success 为 50/50，证明目标与执行协议自洽。
+
+模型完成 Clean 与 Robust 两次运行后，使用配对报告脚本：
+
+```bash
+python scripts/compare_robustness.py \
+  --clean-run experiments/results/<clean_run> \
+  --robust-run experiments/results/<robust_run> \
+  --output-prefix experiments/results/<model>_robustness_validation
+```
+
+脚本按照每条 Robust Task 的 `source_task_id` 找到对应 Clean 结果，并自动输出 JSON、CSV 和 Markdown。每个 setting 的核心指标为：
+
+```text
+Robustness Gap = 同源 Clean Task Success - Perturbed Task Success
+```
+
+当前只完成了数据与评测框架，尚未填写模型 Robustness 数字。
+
 ## Calendar 工具环境
 
 当前环境包含 5 个工具：
@@ -316,6 +356,7 @@ Evaluator 当前输出以下指标。每个比率都保存 `value`、`numerator`
 | `argument_semantic_accuracy` | 参数语义准确率 | 规范化后参数值是否满足参考语义 |
 | `executable_call_rate` | 可执行调用率 | 环境是否成功执行调用 |
 | `task_success_rate` | 任务成功率 | 重放后的环境状态和观测是否达到目标 |
+| `final_answer_semantic_accuracy` | 最终回答语义准确率 | 显式配置内容约束的回答是否满足确定性短语条件 |
 | `multi_turn_task_success_rate` | 多轮任务成功率 | 多轮任务是否整体完成 |
 | `recovery_success_rate` | 错误恢复成功率 | 工具失败后是否最终恢复并完成任务 |
 | `invalid_tool_call_rate` | 无效调用率 | 调用是否因为解析、工具或参数问题无效 |
@@ -402,7 +443,7 @@ robust-tool-slm/
 
 ### Week 3：失败驱动优化
 
-已完成 Top 3 failure 冻结、3000 条全新 Train Hard Cases、Failure-SFT 训练和统一 Validation 评测。下一步加入扰动 Benchmark 与随机增强对照，验证当前 1.8 个百分点的 Task Success 增益是否来自失败感知数据，而不是单纯增加训练样本。
+已完成 Top 3 failure 冻结、3000 条全新 Train Hard Cases、Failure-SFT 训练、统一 Validation 评测，以及 500 条 / 10 类 Robust Validation 的生成与配对评测框架。下一步运行三种模型的 Robust Validation，再做随机增强对照，验证当前 1.8 个百分点的 Task Success 增益是否来自失败感知数据，而不是单纯增加训练样本。
 
 ### Week 4：执行反馈 GRPO
 

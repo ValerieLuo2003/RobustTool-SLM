@@ -212,6 +212,26 @@ Failure-SFT 相比普通 SFT 的目标 failure 变化如下：
 
 Failure-SFT 推理耗时约 4064.7 秒，普通 SFT 为 1911.9 秒；但前者只多 1.5% 的生成步数和 2.6% 的输出 token。当前证据不足以把延迟差异归因于训练方法，正式效率比较需要在相同机器状态下重复运行并记录 GPU 时钟、功耗和并发负载。
 
+Robustness Validation 数据与配对报告命令为：
+
+```bash
+python scripts/generate_robustness_data.py
+
+python scripts/run_qwen_baseline.py \
+  --tasks data/processed/calendar_robustness_validation_v1/tasks.jsonl \
+  --adapter-path <与 Clean 运行相同的 adapter；Base 省略此参数> \
+  --run-name <model>_robustness_validation
+
+python scripts/run_eval.py --run-name <model>_robustness_validation
+
+python scripts/compare_robustness.py \
+  --clean-run experiments/results/<model>_clean_validation \
+  --robust-run experiments/results/<model>_robustness_validation \
+  --output-prefix experiments/results/<model>_robustness_gap_validation
+```
+
+当前 500 条 Robust Validation 已通过 Oracle 全量重放，10 类扰动各 50 条，Train 使用量为 0。模型结果尚未运行，因此本文件不提前填写 Robustness Gap。
+
 ## 5. 正式对比规则
 
 Base、SFT、Failure-SFT 和 GRPO 之间必须尽量保持：

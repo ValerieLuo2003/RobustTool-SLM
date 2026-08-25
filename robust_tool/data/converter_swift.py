@@ -8,7 +8,7 @@ from typing import Any, Iterable, Mapping
 
 from robust_tool.data.schemas import Task
 from robust_tool.rollout.trajectory import Trajectory
-from robust_tool.tools.registry import ToolRegistry, calendar_registry
+from robust_tool.tools.registry import ToolRegistry, calendar_registry, registry_for_task_record
 
 
 def _json_string(payload: Mapping[str, Any] | list[Mapping[str, Any]]) -> str:
@@ -29,7 +29,8 @@ def trajectory_to_swift_record(
             f"task/trajectory ID mismatch: {task.task_id!r} != {trajectory.task_id!r}"
         )
     registry = registry or calendar_registry()
-    tools = registry.function_schemas(task.available_tools)
+    task_registry = registry_for_task_record(task.to_dict(), registry)
+    tools = task_registry.function_schemas(task.available_tools)
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     assistant_targets = 0
     for message in trajectory.messages:

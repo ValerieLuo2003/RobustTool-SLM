@@ -47,7 +47,7 @@ v2 在首次 Qwen Validation smoke test 后修复了任务文本歧义：凡是�
 - `clarify`：用户缺少时间、日期、时长等必要信息时要求澄清；
 - `respond`：用户只询问能力时直接回答，不调用工具。
 
-正式数据包含八类配额：查询、创建、更新、删除、空闲检查、澄清、无工具和多步任务。多步任务包括 `check_availability → create_event`、`list_events → update_event` 和 `list_events → delete_event`，后一步需要使用前一步工具结果中的状态或 event ID。工具错误恢复与扰动任务留在后续 Robustness 阶段。
+正式 Clean 数据包含八类配额：查询、创建、更新、删除、空闲检查、澄清、无工具和多步任务。多步任务包括 `check_availability → create_event`、`list_events → update_event` 和 `list_events → delete_event`，后一步需要使用前一步工具结果中的状态或 event ID。工具错误恢复与扰动任务由独立的 Robustness Validation 生成器构造，不混入 Clean 或 SFT Train。
 
 ## 4. ms-swift SFT 数据
 
@@ -271,12 +271,59 @@ manifest.json         版本、数量与 SHA-256
 5. 运行全量测试；
 6. 在实验文档中记录变更原因。
 
-## 10. 后续扩展计划
+## 10. Robustness Validation 数据
+
+生成命令：
+
+```bash
+python scripts/generate_robustness_data.py
+```
+
+正式配置固定在 `configs/data/calendar_robustness_validation_v1.json`：
+
+```json
+{
+  "dataset_name": "calendar-robustness-validation-v1",
+  "generator_version": "calendar-robustness-v1",
+  "seed": 20260825,
+  "source_split": "validation",
+  "count_per_kind": 50
+}
+```
+
+输出目录为 `data/processed/calendar_robustness_validation_v1/`：
+
+```text
+tasks.jsonl                 500 条 Robust Validation Task
+oracle_trajectories.jsonl   可执行 Oracle 轨迹
+manifest.json               配置、来源、输出哈希与 Oracle 审计
+```
+
+每条 Robust Task 都在 `metadata.robustness` 中保存：
+
+- `kind`：10 类扰动之一；
+- `source_task_id`：对应的 Clean Validation Task；
+- `source_task_sha256`：源 Task 的规范化内容哈希；
+- 该扰动需要的 `faults`、`response_mutations` 或 `synthetic_tool_results`。
+
+当前数据包含 10 类 × 50 条，使用 323 个不同的源 Validation Task；单个源 Task 最多产生 5 个不同 setting 的变体。类别选择采用确定性分层抽样，例如 ambiguous 在 create / update / delete 间近似均衡，noisy / partial 在 list / availability 间各占一半。
+
+隔离规则：
+
+- 只读取 Validation，不读取 Train；
+- 输出用途固定为 Robust Validation，不转换为 ms-swift Train；
+- 不读取 Clean Test，也不根据 Test 表现修改扰动；
+- 后续 Robust Test 必须从冻结 Test 单独生成，并使用独立配置与输出目录；
+- 每次生成都必须达到 Oracle Task Success 100%，否则拒绝写入正式结果。
+
+当前任务文件 SHA-256 为 `a62c76019ad935f58d915e096cad38f02fca8701cb702be1a61fe2a7f7c9f18e`；源 Validation SHA-256 为 `ad2202da79bdbae87a486d40ebf3ab44ee3223481c1021d29e129213ec261dee`。生成代码发生语义变化后必须重新生成并以新 manifest 为准。
+
+## 11. 后续扩展计划
 
 当前正式规模已经达到 SFT 6000 条 Train 加 Failure-aware 3000 条 Train。后续扩展重点不是继续无目的增加数量，而是：
 
 - 保持 500 条 Validation 和 1000 条冻结 Clean Test；
-- 单独构建 `robust_test`；
+- 在方法冻结后从 Clean Test 单独构建 `robust_test`；
 - 新增 Calendar、Travel、Shopping、Weather 等 domain；
 - 新增多工具、多轮、澄清、无工具、工具故障和恢复任务。
 

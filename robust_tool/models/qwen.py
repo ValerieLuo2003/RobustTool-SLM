@@ -15,7 +15,7 @@ from robust_tool.models.config import ModelInferenceConfig
 from robust_tool.rollout.parser import parse_assistant_output
 from robust_tool.rollout.runner import AgentAction
 from robust_tool.rollout.trajectory import Trajectory
-from robust_tool.tools.registry import ToolRegistry, calendar_registry
+from robust_tool.tools.registry import ToolRegistry, calendar_registry, registry_for_task_record
 
 
 def trajectory_to_chat_messages(
@@ -189,7 +189,8 @@ class QwenTransformersPolicy:
         torch = self._torch
         tokenizer = self._tokenizer
         model = self._model
-        tools = self.registry.function_schemas(task.available_tools)
+        task_registry = registry_for_task_record(task.to_dict(), self.registry)
+        tools = task_registry.function_schemas(task.available_tools)
         messages = trajectory_to_chat_messages(trajectory, self.config.system_prompt)
         inputs = tokenizer.apply_chat_template(
             messages,

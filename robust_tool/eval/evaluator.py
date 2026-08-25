@@ -13,7 +13,7 @@ from robust_tool.eval.failure_classifier import FailureClassification, classify_
 from robust_tool.eval.metrics import MetricValue, aggregate_metrics
 from robust_tool.eval.task_success import ReplayResult, replay_trajectory
 from robust_tool.rollout.trajectory import Trajectory
-from robust_tool.tools.registry import ToolRegistry, calendar_registry
+from robust_tool.tools.registry import ToolRegistry, calendar_registry, registry_for_task_record
 
 
 @dataclass(frozen=True)
@@ -66,7 +66,8 @@ def evaluate_task(
     trajectory: Trajectory,
     registry: ToolRegistry | None = None,
 ) -> TaskEvaluation:
-    registry = registry or calendar_registry()
+    base_registry = registry or calendar_registry()
+    registry = registry_for_task_record(task.to_dict(), base_registry)
     replay = replay_trajectory(task, trajectory)
     calls = trajectory.tool_calls()
 
@@ -114,6 +115,10 @@ def evaluate_task(
         "semantic_total_arguments": semantic_total,
         "executable_calls": executable_calls,
         "task_success": int(replay.task_success),
+        "final_answer_semantic_eligible": int(
+            isinstance(task.metadata.get("response_expectation"), Mapping)
+        ),
+        "final_answer_semantic_correct": int(replay.final_answer_semantic_match),
         "invalid_calls": invalid_calls,
         "unnecessary_call": int(task.expected_action != "call" and bool(calls)),
         "recovery_eligible": recovery_eligible,

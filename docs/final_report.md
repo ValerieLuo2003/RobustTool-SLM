@@ -1,6 +1,6 @@
 # 最终报告模板
 
-> 当前仓库已完成基础框架、正式 SFT、Failure-aware 数据生成、Failure-SFT 训练，以及 Base / SFT / Failure-SFT 的统一 Validation 对比。本文件同时保存已经有机器可读产物支持的阶段结论和后续待完成部分；Clean Test、Robustness、Random Augmentation 消融与 GRPO 结果仍不得提前填写。
+> 当前仓库已完成基础框架、正式 SFT、Failure-aware 数据生成、Failure-SFT 训练、Base / SFT / Failure-SFT 的统一 Validation 对比，以及 Robustness Validation 数据与配对评测框架。本文件同时保存已经有机器可读产物支持的阶段结论和后续待完成部分；Clean Test、模型 Robustness 数字、Random Augmentation 消融与 GRPO 结果仍不得提前填写。
 
 ## 1. 项目摘要
 

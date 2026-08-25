@@ -46,6 +46,8 @@ Task 和 Trajectory 必须一一对应。缺失轨迹、额外轨迹或重复 `t
 - 环境重放后 `check_goal()` 为真；
 - 模型给出了非空最终回答。
 
+如果 Task 定义了 `metadata.response_expectation`，最终回答还必须通过确定性短语检查。例如 `missing_tool` 任务要求回答同时提到被移除的工具，并包含“not available / unavailable / cannot”之一。未定义该字段的普通任务不受影响。
+
 ### 澄清任务
 
 同时满足：
@@ -172,13 +174,17 @@ Schema 正确不等于可执行成功。例如，合法的时间参数仍可能�
 
 这是项目最重要的 Outcome 指标。
 
+### `final_answer_semantic_accuracy`
+
+只在定义了 `response_expectation` 的任务上统计最终回答是否满足确定性内容条件。当前用于 `missing_tool`；没有 eligible 样本时为 `null`。它不替代环境状态检查，也不使用 LLM-as-Judge。
+
 ### `multi_turn_task_success_rate`
 
 只在 `reference_calls` 大于 1 的任务上统计完整成功率。当前 toy benchmark 没有 eligible 样本，因此值为 `null`。
 
 ### `recovery_success_rate`
 
-只在轨迹中实际遇到可恢复错误的任务上统计最终成功率。当前工具错误注入尚未实现，因此通常为 `null`。
+只在轨迹中实际遇到 retriable 错误的任务上统计最终成功率。Robustness v1 的 `tool_failure` 会在第一次调用时注入确定性 timeout；模型只有重试成功、达到 Goal 并给出最终回答，才计为恢复成功。
 
 ### `invalid_tool_call_rate`
 
@@ -232,9 +238,29 @@ python scripts/analyze_failures.py \
 
 - 当前语义规范化只覆盖 Calendar v1 中的确定性字段；
 - Tool Selection 依赖 `reference_calls` 的位置对应；
-- 当前 toy 数据以单调用为主，还不能证明多轮能力；
-- Recovery 指标要等故障注入任务加入后才有意义；
-- Final Answer 当前只检查是否非空，尚未进行更细粒度的内容正确性判断；
+- Final Answer 的确定性语义检查目前只覆盖显式配置的 `missing_tool`，普通自然语言回答仍主要检查非空与环境目标；
+- `partial_tool_response` 是 `ok=true` 但缺失关键字段，因此不进入 retriable-error Recovery 分母，只通过 Task Success 检查是否正确重试；
 - 还没有实现 pass@k 和 pass^k。
 
-这些限制应在解释 Week 1 结果时明确说明，不能把 Oracle smoke test 当作模型能力结论。
+## 8. Robustness Gap
+
+模型在 Clean 与 Robust Task 上分别运行并完成 Environment Evaluation 后，执行：
+
+```bash
+python scripts/compare_robustness.py \
+  --clean-run experiments/results/<clean_run> \
+  --robust-run experiments/results/<robust_run> \
+  --output-prefix experiments/results/<model>_robustness_validation
+```
+
+每条 Robust Task 都通过 `source_task_id` 与 Clean Task 配对。对某个 setting：
+
+```text
+Robustness Gap
+= 同源 Clean Task Success
+- Perturbed Task Success
+```
+
+脚本还输出每个 setting 的分层指标、Failure Distribution，以及 `Clean fail → Perturbed success` / `Clean success → Perturbed fail` 的配对迁移。Clean 与 Robust 运行的模型 revision、adapter 权重哈希、解码配置和最大步数必须一致，否则拒绝比较。
+
+这些限制应在解释结果时明确说明，不能把 Oracle 100% 当作模型能力结论；Oracle 只证明数据目标、工具执行和 Evaluator 自洽。

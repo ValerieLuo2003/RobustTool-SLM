@@ -341,14 +341,47 @@ Evaluator 可以只使用 Task 文件和 `trajectories.jsonl` 重新计算全部
 
 `scripts/build_hard_cases.py` 只负责串联：加载冻结产物、生成 Task、运行 Oracle、调用同一 Evaluator、转换 ms-swift 格式并写 manifest。Test 仅用于碰撞审计，不能影响类别、模板或参数分布。
 
-## 16. 当前有意延后的内容
+## 16. Robustness Benchmark 接口
+
+Robustness v1 不在推理脚本中硬编码扰动，而是把扰动协议写入 Task metadata。这样 Oracle、Qwen Policy 和 Evaluator 共享同一份真值：
+
+```text
+Clean Validation Task
+        ↓ 确定性选择与变换
+Robust Task metadata
+  ├─ tool_description_overrides
+  ├─ tool_schema_additions
+  └─ robustness
+       ├─ source_task_id
+       ├─ faults
+       ├─ response_mutations
+       └─ synthetic_tool_results
+        ↓
+任务级 Tool Registry + Calendar Environment
+        ↓
+Trajectory → 全新环境重放 → Robustness Gap
+```
+
+任务级 Tool Registry 只改变该任务暴露给模型的 Schema，不修改全局 Registry。合成 distractor 是可注册、可校验、可执行但不改变 Calendar 状态的工具，因此模型选择它会被判为 `wrong_tool`，而不是错误地归为未注册工具。
+
+故障和返回值扰动由 Environment 按工具名与调用序号确定性触发：
+
+- `tool_failure` 在第一次有效调用前返回 retriable timeout，第二次调用正常执行；
+- `partial_tool_response` 第一次正常执行只读工具，但移除 Goal Check 所需的关键字段，第二次返回完整结果；
+- `noisy_tool_response` 保留正确字段并追加无关 metadata，因此 Goal Check 仍应通过；
+- 合成工具只返回固定的只读结果，不修改状态。
+
+`missing_tool` 和 `ambiguous_user_query` 会改变正确调用决策。前者要求直接说明工具不可用，Evaluator 使用确定性关键词协议检查最终回答，而不只检查“非空”；后者要求发起澄清且不能调用工具。
+
+`scripts/compare_robustness.py` 使用 `source_task_id` 做逐任务配对。每种扰动的 Clean 分母不是整个 Validation，而是该 setting 实际选择的 50 个同源 Clean 样本，防止由于任务难度组成不同而制造虚假 Gap。
+
+## 17. 当前有意延后的内容
 
 当前阶段仍有意延后以下内容：
 
-- 工具超时、不可用、恶意或部分返回等故障注入；
-- Robustness 扰动套件；
 - Random Augmentation 对照；
-- Failure-SFT 正式训练与评测；
+- Base / SFT / Failure-SFT 的 Robust Validation 模型运行；
+- 冻结 Clean Test 对应的最终 Robust Test；
 - Dense Reward 和 GRPO。
 
 这些模块会复用已经冻结的 Task、Trajectory、Environment 和 Evaluator 接口，不能为了某个模型的结果而修改环境真值。
