@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import tempfile
 import unittest
-import json
 from pathlib import Path
 
 from robust_tool.data.converter_swift import (
@@ -27,6 +28,14 @@ from robust_tool.data.recovery_cases import (
     audit_recovery_tasks,
     generate_recovery_tasks,
     load_recovery_config,
+)
+from robust_tool.data.random_augmentation import (
+    MATCHED_SOURCE_CONTROL,
+    RANDOM_AUGMENTATION_VERSION,
+    RandomAugmentationConfig,
+    audit_random_augmentation_tasks,
+    generate_random_augmentation_tasks,
+    load_random_augmentation_config,
 )
 from robust_tool.data.generator import generate_calendar_toy_tasks, write_calendar_toy_dataset
 from robust_tool.eval.evaluator import evaluate_dataset
@@ -90,6 +99,17 @@ class DatasetTests(unittest.TestCase):
                 "tool_failure": 2,
                 "partial_tool_response": 2,
             },
+        )
+
+    @staticmethod
+    def _small_random_config(seed: int = 789) -> RandomAugmentationConfig:
+        return RandomAugmentationConfig(
+            dataset_name="calendar-random-control-test",
+            generator_version=RANDOM_AUGMENTATION_VERSION,
+            seed=seed,
+            size=6,
+            control_type=MATCHED_SOURCE_CONTROL,
+            matched_recovery_config_sha256="c" * 64,
         )
 
     def test_generator_has_fixed_size_unique_ids_and_strict_splits(self) -> None:
@@ -168,6 +188,70 @@ class DatasetTests(unittest.TestCase):
             formal.source_robust_validation_sha256,
             "a62c76019ad935f58d915e096cad38f02fca8701cb702be1a61fe2a7f7c9f18e",
         )
+
+    def test_random_control_is_deterministic_and_matches_recovery_sources(self) -> None:
+        splits = generate_calendar_formal_splits(self._small_formal_config())
+        recovery_config = self._small_recovery_config()
+        random_config = self._small_random_config()
+        left = generate_random_augmentation_tasks(
+            random_config,
+            recovery_config,
+            splits["train"],
+        )
+        right = generate_random_augmentation_tasks(
+            random_config,
+            recovery_config,
+            splits["train"],
+        )
+        self.assertEqual([task.to_dict() for task in left], [task.to_dict() for task in right])
+        audit = audit_random_augmentation_tasks(
+            left,
+            random_config,
+            recovery_config,
+            splits,
+        )
+        self.assertEqual(audit["count"], 6)
+        self.assertEqual(audit["unique_source_train_tasks"], 6)
+        self.assertEqual(audit["failure_injection_count"], 0)
+        self.assertEqual(audit["source_overlap"], {"task_ids": 0, "normalized_user_queries": 0})
+
+    def test_random_control_oracle_succeeds_without_recovery_faults(self) -> None:
+        splits = generate_calendar_formal_splits(self._small_formal_config())
+        tasks = generate_random_augmentation_tasks(
+            self._small_random_config(),
+            self._small_recovery_config(),
+            splits["train"],
+        )
+        report = evaluate_dataset(tasks, run_policy(tasks, OraclePolicy(), max_steps=4))
+        self.assertEqual(report.metrics["task_success_rate"].value, 1.0)
+        self.assertIsNone(report.metrics["recovery_success_rate"].value)
+        self.assertFalse(report.failure_counts)
+        self.assertTrue(all("robustness" not in task.metadata for task in tasks))
+
+    def test_checked_in_random_control_configs_match_recovery_scale_and_hash(self) -> None:
+        root = Path(__file__).parents[1]
+        data_configs = root / "configs" / "data"
+        pairs = (
+            (
+                "calendar_random_augmentation_v2_smoke.json",
+                "calendar_recovery_failure_aware_v2_smoke.json",
+            ),
+            (
+                "calendar_random_augmentation_v2.json",
+                "calendar_recovery_failure_aware_v2.json",
+            ),
+        )
+        for random_name, recovery_name in pairs:
+            random_config = load_random_augmentation_config(data_configs / random_name)
+            recovery_config = load_recovery_config(data_configs / recovery_name)
+            recovery_hash = hashlib.sha256(
+                (data_configs / recovery_name).read_bytes()
+            ).hexdigest()
+            self.assertEqual(random_config.size, recovery_config.size)
+            self.assertEqual(
+                random_config.matched_recovery_config_sha256,
+                recovery_hash,
+            )
 
     def test_dated_queries_make_reference_year_explicit(self) -> None:
         tasks = generate_calendar_toy_tasks()

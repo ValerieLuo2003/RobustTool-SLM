@@ -1,0 +1,7 @@
+{
+  "dataset_name": "calendar-robustness-test-v1",
+  "generator_version": "calendar-robustness-v1",
+  "seed": 20260826,
+  "source_split": "test",
+  "count_per_kind": 50
+}

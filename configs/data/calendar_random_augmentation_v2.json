@@ -1,0 +1,8 @@
+{
+  "dataset_name": "calendar-matched-random-augmentation-v2",
+  "generator_version": "calendar-matched-random-augmentation-v2",
+  "seed": 20260826,
+  "size": 3000,
+  "control_type": "matched_source_semantic_rewrite",
+  "matched_recovery_config_sha256": "a3a870ab6fd8865f2ca6f2c76e6ccd8914447b6c7f6a93a5137105d65ab81d38"
+}

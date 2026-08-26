@@ -169,6 +169,17 @@ python scripts/run_eval.py --run-name qwen2_5_1_5b_sft_formal_v1_validation
 
 这些数字由远程实验目录中的 `metrics.json` 和比较脚本生成，只用于 Validation 方法选择，不代替最终 Test 结果。
 
+最终 Test 评测必须先生成独立的 Robust Test：
+
+```bash
+python scripts/generate_robustness_data.py \
+  --config configs/data/calendar_robustness_test_v1.json \
+  --source-tasks data/processed/calendar_formal_v1/tasks/test.jsonl \
+  --output-dir data/processed/calendar_robustness_test_v1
+```
+
+随后对同一份 `clean_test.jsonl` 和 `robustness_test_v1/tasks.jsonl` 分别运行 Base、Recovery-aware v2 和 Random Augmentation v2。每个 adapter 的 checkpoint 只能根据 Validation loss 选择；Clean Test 与 Robust Test 只用于最终报告。
+
 Failure-aware 数据阶段使用以下命令：
 
 ```bash

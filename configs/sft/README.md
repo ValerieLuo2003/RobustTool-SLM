@@ -54,8 +54,12 @@ Failure-aware 阶段提供两份新配置：
 
 - `qwen2_5_1_5b_lora_failure_aware_smoke.json`：原始 Train 与 Hard-case 各抽样 64 条，Validation 抽样 32 条，只运行 20 step；
 - `qwen2_5_1_5b_lora_failure_aware_v1.json`：从同一冻结 Base 开始，使用原始 6000 + Failure-aware 3000，Validation 仍是原来的 500 条。
+- `qwen2_5_1_5b_lora_recovery_aware_v2.json`：从同一冻结 Base 开始，使用原始 6000 + Failure-aware v1 3000 + Recovery v2 3000。
+- `qwen2_5_1_5b_lora_random_augmentation_v2.json`：与 Recovery-aware v2 使用完全相同的总样本量、优化配置和 Validation，仅将第二阶段新增 3000 条替换为 matched Random Augmentation 对照。
 
 Failure-SFT 不直接续训原 SFT adapter。这样后续的 Failure-aware 3000 与 Random 3000 可以都从同一 Base、在相同总数据量和训练超参数下重训，避免 optimizer 历史或二阶段学习率成为混杂因素。
+
+两种 v2 配置都使用 12000 条 Train、500 条冻结 Validation、1 个 epoch、LoRA rank 16、相同 seed 和相同 checkpoint 选择协议。正式训练前必须确认三份 Train 文件都存在；Validation/Test 不得进入新增数据生成或训练。
 
 ```bash
 python scripts/run_sft.py --config configs/sft/qwen2_5_1_5b_lora_failure_aware_smoke.json

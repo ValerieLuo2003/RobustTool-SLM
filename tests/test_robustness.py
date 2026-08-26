@@ -183,6 +183,18 @@ class RobustnessTests(unittest.TestCase):
         self.assertEqual(config.count_per_kind, 50)
         self.assertEqual(config.size, 500)
 
+    def test_checked_in_config_freezes_500_test_perturbations(self) -> None:
+        path = (
+            Path(__file__).parents[1]
+            / "configs"
+            / "data"
+            / "calendar_robustness_test_v1.json"
+        )
+        config = load_robustness_config(path)
+        self.assertEqual(config.source_split, "test")
+        self.assertEqual(config.count_per_kind, 50)
+        self.assertEqual(config.size, 500)
+
     def test_paired_robustness_report_has_zero_oracle_gap(self) -> None:
         source = self._source_tasks()
         tasks = generate_robustness_tasks(self._config(), source)

@@ -318,6 +318,8 @@ manifest.json               配置、来源、输出哈希与 Oracle 审计
 
 当前任务文件 SHA-256 为 `a62c76019ad935f58d915e096cad38f02fca8701cb702be1a61fe2a7f7c9f18e`；源 Validation SHA-256 为 `ad2202da79bdbae87a486d40ebf3ab44ee3223481c1021d29e129213ec261dee`。生成代码发生语义变化后必须重新生成并以新 manifest 为准。
 
+最终测试阶段使用独立配置 `configs/data/calendar_robustness_test_v1.json`，从冻结的 `calendar_formal_v1/tasks/test.jsonl` 单独生成 500 条 `robust_test`。它与 Robustness Validation 使用同一套 10 类扰动和 50 条/类配额，但不读取 Validation 结果，也不进入任何训练或 checkpoint 选择。
+
 ## 11. Recovery Failure-aware v2 训练数据
 
 正式鲁棒性验证显示 `missing_tool`、`tool_failure` 和 `partial_tool_response` 是 SFT 后仍未解决的三类失败。生成命令为：
