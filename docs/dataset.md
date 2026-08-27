@@ -346,7 +346,7 @@ python scripts/build_recovery_cases.py
 - Trajectory：`caca1c92120f7e8436bd2f50c0d66d4038510da416c7757f575ae3daf3acdfdb`；
 - ms-swift Train：`1328078cc38fc3c604166cb0242be16570bde39fe87eb28765f027ea97466e1a`。
 
-这些文件属于生成产物，不提交 Git；仓库提交生成器、冻结配置和测试。正式训练必须等 Random Augmentation 对照完成后，使用同样新增 3000 条、相同 Base 数据和相同优化配置。
+这些文件属于生成产物，不提交 Git；仓库提交生成器、冻结配置和测试。Recovery-aware v2 与 Random Augmentation v2 已使用同样新增 3000 条、相同 Base 数据和相同优化配置完成等规模对照，最终结果见 [`docs/final_test_report.md`](final_test_report.md)。
 
 ## 12. 后续扩展计划
 

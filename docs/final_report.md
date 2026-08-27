@@ -1,6 +1,6 @@
 # 最终报告模板
 
-> 当前仓库已完成基础框架、正式 SFT、Failure-aware 数据生成、Failure-SFT 训练、Base / SFT / Failure-SFT 的统一 Clean Validation、500 条 Robustness Validation 正式对比，以及 3000 条 Train-only Recovery v2 数据生成和 Oracle 审计。本文件同时保存已有机器可读产物支持的阶段结论和后续待完成部分；Recovery v2 尚未训练，Clean Test、Random Augmentation 消融与 GRPO 结果仍不得提前填写。
+> 本文件保留为项目最终报告的研究问题与章节模板。Recovery-aware v2、等规模 Random Augmentation v2，以及 Base / Recovery-v2 / Random-v2 的冻结 Clean Test / Robust Test 已完成；带真实指标、快照哈希和产物索引的报告见 [`docs/final_test_report.md`](final_test_report.md)。GRPO 仍未开始，因此下文涉及 GRPO 的问题仍属于后续计划。
 
 ## 1. 项目摘要
 
