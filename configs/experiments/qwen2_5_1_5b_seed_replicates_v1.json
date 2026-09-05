@@ -1,0 +1,15 @@
+{
+  "seeds": [20260824, 20260825],
+  "sft_methods": {
+    "recovery_v2": {
+      "base_config": "configs/sft/qwen2_5_1_5b_lora_recovery_aware_v2.json",
+      "output_pattern": "experiments/results/qwen2_5_1_5b_recovery_aware_v2_seed_{seed}/trainer_output"
+    },
+    "random_augmentation_v2": {
+      "base_config": "configs/sft/qwen2_5_1_5b_lora_random_augmentation_v2.json",
+      "output_pattern": "experiments/results/qwen2_5_1_5b_random_augmentation_v2_seed_{seed}/trainer_output"
+    }
+  },
+  "evaluation_splits": ["clean_test", "robust_test"],
+  "aggregation_command": "python scripts/aggregate_seed_runs.py --metric metrics.task_success_rate --run seed_20260824=<run-dir> --run seed_20260825=<run-dir> --output-prefix experiments/results/<aggregate-name>"
+}

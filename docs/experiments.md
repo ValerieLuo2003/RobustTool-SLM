@@ -297,6 +297,49 @@ Recovery-aware v2 数据生成、训练和最终评测已完成。配置固定�
 
 Random Augmentation v2 已作为等规模对照完成。两边都使用 `原始 SFT 6000 + 第一版 Failure-aware 3000 + 第二阶段新增 3000`，从相同 Base Model 重训，并保持 epoch、batch、学习率、LoRA、seed 和 checkpoint 选择协议一致。这样可以区分恢复类别的定向分配与单纯增加训练样本的影响。实际 Clean Test / Robust Test 结果见 [`docs/final_test_report.md`](final_test_report.md)。
 
+## 4.1 执行反馈 GRPO
+
+GRPO 训练实现位于 `robust_tool/grpo/`，使用 `scripts/run_grpo.py` 启动。每个任务先采样
+`group_size` 条完整轨迹，每条轨迹都在独立的 `CalendarEnvironment` 中执行；随后用
+`evaluate_task` 重放并计算 Reward，在组内标准化 advantage，最后对采样 assistant token
+应用 clipped policy objective。训练产物包括 `tasks.jsonl`、`config.json`、
+`reward_records.jsonl`、`checkpoint-*`、`metrics.json` 和 `run.log`。
+
+Reward 消融使用同一批 `calendar_robustness_validation_v1` 任务：
+
+```bash
+python scripts/run_grpo.py \
+  --config configs/grpo/qwen2_5_1_5b_grpo_outcome_from_recovery_v2.json \
+  --adapter-path experiments/results/<recovery-v2-best-adapter> \
+  --output-dir experiments/results/qwen2_5_1_5b_grpo_outcome_from_recovery_v2
+
+python scripts/run_grpo.py \
+  --config configs/grpo/qwen2_5_1_5b_grpo_dense_from_recovery_v2.json \
+  --adapter-path experiments/results/<recovery-v2-best-adapter> \
+  --output-dir experiments/results/qwen2_5_1_5b_grpo_dense_from_recovery_v2
+```
+
+Robust Test / Clean Test 不参与 GRPO 训练。训练完成后，使用既有的
+`scripts/run_qwen_baseline.py` 加载最终 `checkpoint-*`，分别在冻结 Clean Test 和
+Robust Test 上生成轨迹，再用 `scripts/run_eval.py` 评测。
+
+## 4.2 两个随机种子复现
+
+`scripts/run_sft.py` 支持不修改源配置直接覆盖 `--seed` 和 `--output-dir`，并把生效配置
+写入对应运行目录。计划使用 `configs/experiments/qwen2_5_1_5b_seed_replicates_v1.json`
+中的 `20260824` 和 `20260825`，Recovery-v2 与 Random Augmentation v2 使用完全相同的
+seed 集合和评测协议。完成各 seed 的 Clean / Robust 评测后，可用：
+
+```bash
+python scripts/aggregate_seed_runs.py \
+  --metric metrics.task_success_rate \
+  --run seed_20260824=experiments/results/<seed-20260824-eval> \
+  --run seed_20260825=experiments/results/<seed-20260825-eval> \
+  --output-prefix experiments/results/<method>_seed_summary
+```
+
+汇总文件同时保存 JSON 和 Markdown，`std` 明确使用两个观测值的样本标准差（ddof=1）。
+
 ## 5. 正式对比规则
 
 Base、SFT、Failure-SFT 和 GRPO 之间必须尽量保持：
