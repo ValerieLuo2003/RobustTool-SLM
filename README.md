@@ -45,7 +45,7 @@ Failure-aware SFT
 
 ## 当前完成到哪里
 
-目前已经完成 Week 1 基础框架、正式 SFT、Failure-aware 数据闭环、Recovery-aware v2 与等规模 Random Augmentation v2 训练，以及 Base / Recovery-v2 / Random-v2 在冻结 Clean Test 和 10 类、共 500 条 Robust Test 上的正式评测。Recovery-v2 将 Robust Test Task Success 从 Base 的 38.4% 提升到 85.0%，Recovery Success 从 4.0% 提升到 92.0%，总体 Robustness Gap 从 29.2 个百分点降到 9.2 个百分点；等规模 Random-v2 的 Clean Test Task Success 达到 92.8%，但 Robust Test 只有 65.8%，Recovery Success 为 0%。这组对照说明提升主要来自针对恢复行为的数据增强，而不是单纯增加 3000 条训练样本。完整数字、快照哈希和复现实验产物见 [`docs/final_test_report.md`](docs/final_test_report.md)。
+目前已经完成 Week 1 基础框架、正式 SFT、Failure-aware 数据闭环、Recovery-aware v2 与等规模 Random Augmentation v2 训练，以及 Base / Recovery-v2 / Random-v2 在冻结 Clean Test 和 10 类、共 500 条 Robust Test 上的正式评测。Recovery-v2 将 Robust Test Task Success 从 Base 的 38.4% 提升到 85.0%，Recovery Success 从 4.0% 提升到 92.0%，总体 Robustness Gap 从 29.2 个百分点降到 9.2 个百分点；等规模 Random-v2 的 Clean Test Task Success 达到 92.8%，但 Robust Test 只有 65.8%，Recovery Success 为 0%。这组对照说明提升主要来自针对恢复行为的数据增强，而不是单纯增加 3000 条训练样本。现在已补齐 execution-feedback GRPO 的 Outcome / Failure-aware Dense Reward、轨迹采样和 clipped group-relative update，以及多 seed 训练/统计入口；实际 GRPO 训练和两组 seed 复现仍待训练机上线后运行。完整数字、快照哈希和复现实验产物见 [`docs/final_test_report.md`](docs/final_test_report.md)。
 
 | 模块 | 当前状态 | 说明 |
 |---|---|---|
@@ -56,7 +56,7 @@ Failure-aware SFT
 | 正式 Calendar 数据 | 已完成 | 6000/500/1000，覆盖八类任务和三种多步状态依赖 |
 | Oracle / Random Baseline | 已完成 | 不依赖模型，用来验证环境与评测器 |
 | 第一版 Evaluator | 已完成 | 支持分层指标、环境重放和失败分类 |
-| 单元测试 | 已完成 | 67 项测试通过，覆盖环境、工具、数据、轨迹、指标、评测、鲁棒性、恢复数据、跨模型汇总与训练前检查 |
+| 单元测试 | 已完成 | 73 项测试通过，覆盖环境、工具、数据、轨迹、指标、评测、鲁棒性、恢复数据、Reward、GRPO objective、跨模型汇总与训练前检查 |
 | Qwen Base Inference | 已完成正式 Validation / Test | 已固定 Qwen2.5-1.5B-Instruct，并在 RTX 3090 完成 Clean Test 与 Robust Test 环境推理和自动评测 |
 | SFT | 已完成正式训练与评测 | 6000 条 Train、1 epoch、LoRA；Validation Task Success 从 66% 提升到 92% |
 | Failure-aware 数据 | 已完成 | 从 SFT Validation 选择 Top 3 failure，3000 条全新 Train 已通过 Oracle 和跨 split 泄漏审计 |
@@ -65,7 +65,8 @@ Failure-aware SFT
 | Recovery v2 数据 | 已完成 | 3000 条 Train-only：Missing Tool / Timeout Retry / Partial Response 各 1000，Oracle 3000/3000 |
 | Random Augmentation v2 对照 | 已完成正式训练与评测 | 与 Recovery-v2 匹配为 12000 条训练规模；用于验证随机扩充与定向恢复数据的差异 |
 | Final Clean / Robust Test 报告 | 已完成 | 三组模型、六个正式 run、Clean→Robust gap、分扰动结果和失败分布均已落盘 |
-| GRPO | 未开始 | Week 4 |
+| GRPO / 执行反馈训练 | 训练入口已实现，待 GPU 运行 | Outcome、Failure-aware Dense Reward、group-relative clipped update；正式配置从 Recovery-v2 初始化 |
+| 多随机种子复现 | 入口已实现，待 GPU 运行 | SFT 支持 `--seed` / `--output-dir`，统计脚本报告均值与样本标准差 |
 
 ## 当前系统是怎样工作的
 
@@ -480,11 +481,11 @@ robust-tool-slm/
 
 ### Week 3：失败驱动优化
 
-已完成 Top 3 clean failure 冻结、第一版 3000 条 Hard Cases、Failure-SFT 训练、统一 Clean Validation、三模型 500 条 Robust Validation、第二版 3000 条 Recovery Train 轨迹，以及等规模 Random Augmentation v2 对照训练。Base / Recovery-v2 / Random-v2 的冻结 Clean Test 与 Robust Test 结果见 [`docs/final_test_report.md`](docs/final_test_report.md)；GRPO 仍未开始。
+已完成 Top 3 clean failure 冻结、第一版 3000 条 Hard Cases、Failure-SFT 训练、统一 Clean Validation、三模型 500 条 Robust Validation、第二版 3000 条 Recovery Train 轨迹，以及等规模 Random Augmentation v2 对照训练。Base / Recovery-v2 / Random-v2 的冻结 Clean Test 与 Robust Test 结果见 [`docs/final_test_report.md`](docs/final_test_report.md)；GRPO 代码和两种奖励已实现，训练结果待 `kuxiaohai` 恢复后补跑。
 
 ### Week 4：执行反馈 GRPO
 
-实现多步环境 Rollout、Outcome Reward、Failure-aware Dense Reward、GRPO 和奖励消融，比较 Base、SFT、Failure-SFT 与 GRPO。
+运行多步环境 Rollout、Outcome Reward、Failure-aware Dense Reward、GRPO 和奖励消融，比较 Recovery-v2 初始化模型与 GRPO 后模型；同时对关键 SFT 对照补跑两个随机种子并报告均值、样本标准差。
 
 ## 推荐阅读顺序
 

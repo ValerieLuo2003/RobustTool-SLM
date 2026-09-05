@@ -1,0 +1,31 @@
+{
+  "model": {
+    "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+    "revision": "3c3787b7c81927cc64ad45dc32ff1c9ce2a5de34",
+    "source": "modelscope",
+    "adapter_path": null,
+    "dtype": "bfloat16",
+    "device": "cuda:0",
+    "max_input_tokens": 2048,
+    "max_new_tokens": 128,
+    "seed": 20260827,
+    "system_prompt": "You are a reliable calendar tool assistant. Use only the tools provided to you. Call at most one tool per assistant turn. Never invent a tool or argument. If required information is missing, ask one concise clarifying question without calling a tool. After receiving a tool result, use it to decide the next action. Do not claim success when a tool reports an error."
+  },
+  "tasks_path": "data/processed/calendar_robustness_validation_v1/tasks.jsonl",
+  "reward_name": "outcome",
+  "reward_config": {},
+  "group_size": 4,
+  "max_steps": 4,
+  "max_updates": 2,
+  "learning_rate": 0.00001,
+  "weight_decay": 0.0,
+  "max_grad_norm": 1.0,
+  "clip_range": 0.2,
+  "gradient_accumulation_steps": 1,
+  "temperature": 0.8,
+  "top_p": 0.95,
+  "save_steps": 2,
+  "seed": 20260827,
+  "output_dir": "experiments/results/qwen2_5_1_5b_grpo_outcome_smoke",
+  "gradient_checkpointing": true
+}

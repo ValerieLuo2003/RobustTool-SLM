@@ -1,6 +1,6 @@
 # 最终报告模板
 
-> 本文件保留为项目最终报告的研究问题与章节模板。Recovery-aware v2、等规模 Random Augmentation v2，以及 Base / Recovery-v2 / Random-v2 的冻结 Clean Test / Robust Test 已完成；带真实指标、快照哈希和产物索引的报告见 [`docs/final_test_report.md`](final_test_report.md)。GRPO 仍未开始，因此下文涉及 GRPO 的问题仍属于后续计划。
+> 本文件保留为项目最终报告的研究问题与章节模板。Recovery-aware v2、等规模 Random Augmentation v2，以及 Base / Recovery-v2 / Random-v2 的冻结 Clean Test / Robust Test 已完成；带真实指标、快照哈希和产物索引的报告见 [`docs/final_test_report.md`](final_test_report.md)。GRPO 的 Reward、轨迹采样和优化入口已实现，但实际训练数字尚未写入本报告。
 
 ## 1. 项目摘要
 

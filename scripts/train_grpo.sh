@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "GRPO is deferred to Week 4; execution rewards are not frozen yet." >&2
-exit 2
+exec python scripts/run_grpo.py \
+  --config configs/grpo/qwen2_5_1_5b_grpo_outcome_smoke.json \
+  "$@"

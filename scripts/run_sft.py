@@ -145,11 +145,27 @@ def main() -> None:
         type=Path,
         default=PROJECT_ROOT / "configs" / "sft" / "qwen2_5_1_5b_lora_smoke.json",
     )
+    parser.add_argument("--seed", type=int, help="override both model/data seeds for a replicate")
+    parser.add_argument("--output-dir", help="override output_dir for a replicate run")
     args = parser.parse_args()
     config_path = args.config.resolve()
     if not config_path.exists():
         parser.error(f"SFT config does not exist: {config_path}")
     swift_config = _load_json(config_path)
+    cli_overrides: dict[str, Any] = {}
+    if args.seed is not None:
+        swift_config["seed"] = args.seed
+        swift_config["data_seed"] = args.seed
+        cli_overrides.update({"seed": args.seed, "data_seed": args.seed})
+    if args.output_dir is not None:
+        swift_config["output_dir"] = args.output_dir
+        output_path = Path(args.output_dir)
+        swift_config["logging_dir"] = str(
+            output_path.parent / f"{output_path.name}_tensorboard"
+        )
+        cli_overrides.update(
+            {"output_dir": swift_config["output_dir"], "logging_dir": swift_config["logging_dir"]}
+        )
     output_dir = (PROJECT_ROOT / str(swift_config["output_dir"])).resolve()
     experiment_root = (PROJECT_ROOT / "experiments" / "results").resolve()
     if not output_dir.is_relative_to(experiment_root):
@@ -163,10 +179,19 @@ def main() -> None:
     if any((run_dir / name).exists() for name in ("config.json", "metrics.json", "run.log")):
         parser.error(f"run artifacts already exist in {run_dir}; use a new output_dir")
     run_dir.mkdir(parents=True, exist_ok=True)
+    effective_config_path = config_path
+    if cli_overrides:
+        effective_config_path = run_dir / "swift_config.json"
+        effective_config_path.write_text(
+            json.dumps(swift_config, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     run_log = run_dir / "run.log"
     metadata = {
         "run_type": "ms-swift-sft",
         "source_config": str(config_path),
+        "effective_config": str(effective_config_path),
+        "cli_overrides": cli_overrides,
         "swift_config": swift_config,
         "git_commit": _git_commit(),
         "python": platform.python_version(),
@@ -179,7 +204,7 @@ def main() -> None:
         encoding="utf-8",
     )
 
-    command = _swift_command(config_path)
+    command = _swift_command(effective_config_path)
     with run_log.open("w", encoding="utf-8") as stream:
         stream.write(f"command={json.dumps(command, ensure_ascii=False)}\n")
         stream.flush()
