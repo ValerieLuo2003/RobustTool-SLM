@@ -23,6 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from robust_tool.data.schemas import load_tasks, write_tasks
 from robust_tool.grpo.config import load_grpo_config
 from robust_tool.grpo.trainer import GRPOTrainer
+from robust_tool.reward.registry import default_reward_registry
 
 
 def _git_commit() -> str:
@@ -83,6 +84,11 @@ def main() -> None:
     parser.add_argument("--seed", type=int, help="override both rollout and model seeds")
     parser.add_argument("--limit", type=int, help="train on only the first N task records")
     parser.add_argument("--max-updates", type=int, help="override optimizer update count")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="validate config, reward, and task snapshot without loading a model or GPU",
+    )
     args = parser.parse_args()
 
     config_path = args.config.resolve()
@@ -130,6 +136,30 @@ def main() -> None:
         tasks = tasks[: args.limit]
     if not tasks:
         parser.error("no training tasks remain after applying --limit")
+
+    try:
+        default_reward_registry().get(config.reward_name)
+    except KeyError as exc:
+        parser.error(str(exc))
+    if args.dry_run:
+        print(
+            json.dumps(
+                {
+                    "dry_run": True,
+                    "config": str(config_path),
+                    "model": config.model.model_id,
+                    "adapter_path": config.model.adapter_path,
+                    "reward": config.reward_name,
+                    "task_count": len(tasks),
+                    "group_size": config.group_size,
+                    "max_updates": config.max_updates,
+                    "output_dir": str(output_dir),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return
 
     random.seed(config.seed)
     output_dir.mkdir(parents=True, exist_ok=True)

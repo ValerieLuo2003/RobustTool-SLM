@@ -451,7 +451,7 @@ robust-tool-slm/
 │   ├── data/                # Task Schema、数据生成、扰动和格式转换
 │   ├── rollout/             # 解析器、Policy Runner 和完整轨迹
 │   ├── eval/                # 参数评测、环境重放、指标和失败分类
-│   └── reward/              # 后续 Outcome / Dense Reward
+│   └── reward/              # Outcome / Failure-aware Dense Reward
 ├── scripts/                 # 只负责串联模块的命令行入口
 ├── data/                    # 生成的数据及冻结评测集
 ├── experiments/             # 每次实验的配置、轨迹、指标和日志

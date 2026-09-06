@@ -50,7 +50,8 @@ Policy / Model ─────> Trajectory ─────> Evaluator
 3. `robust_tool.data`：负责可序列化的 Task、数据划分、确定性生成和后续数据转换。
 4. `robust_tool.rollout`：负责模型输出解析、Policy/Model 适配以及完整交互轨迹记录。
 5. `robust_tool.eval`：在新环境中重放轨迹，计算指标并分类失败；不信任预测中的成功标志。
-6. `robust_tool.reward`：后续根据环境执行结果计算 Outcome 或 Dense Reward。
+6. `robust_tool.reward`：根据环境执行结果计算 Outcome 或 Failure-aware Dense Reward，
+   并以结构化分量和惩罚记录 reward provenance。
 7. `scripts`：只提供薄命令行入口，不承载核心业务逻辑。
 
 依赖方向固定为：
@@ -383,9 +384,8 @@ Recovery eligible 由任务协议定义，而不是由模型是否碰巧触发�
 
 当前阶段仍有意延后以下内容：
 
-- 与 Recovery v2 同为新增 3000 条的 Random Augmentation 对照；
-- 从相同 Base 重训 Recovery-SFT v2 与 Random 对照，并使用完全一致的优化配置；
-- 冻结 Clean Test 对应的最终 Robust Test；
-- Dense Reward 和 GRPO。
+- 在有 GPU 时运行 GRPO 的正式 Outcome/Dense 对照；
+- 在有 GPU 时运行 Recovery-v2 与 Random Augmentation v2 的额外随机种子；
+- 将 GRPO 和多 seed 的实际指标写入最终报告。
 
 这些模块会复用已经冻结的 Task、Trajectory、Environment 和 Evaluator 接口，不能为了某个模型的结果而修改环境真值。
